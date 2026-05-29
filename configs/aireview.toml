@@ -1,5 +1,3 @@
-
-
 language = "zh-CN"
 review_focus = ["correctness", "security", "test risk"]
 

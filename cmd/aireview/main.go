@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"aireview/internal/app"
 	"aireview/internal/config"
-	"aireview/internal/diff"
 	"aireview/internal/github"
 	"aireview/internal/llm"
 	"aireview/internal/review"
@@ -65,27 +65,25 @@ func newReviewCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			client := github.NewClient()
-			pr, err := client.GetPullRequest(cmd.Context(), ref)
-			if err != nil {
-				return err
-			}
 			cfg, err := config.Load(opts.configPath)
 			if err != nil {
 				return err
 			}
-			classifyFiles(pr.Files)
-			findings := review.RuleAnalyzer{}.Analyze(pr)
-			report, llmErr := llm.NewOpenAICompatibleProvider(cfg).Review(cmd.Context(), llm.ReviewRequest{
-				PullRequest:  pr,
-				RuleFindings: findings,
-				Config:       cfg,
-			})
-			printPRSummary(pr, findings, report.Report, llmErr)
-			if llmErr != nil {
-				return llmErr
+			service := app.ReviewService{
+				GitHub: github.NewClient(),
+				LLM:    llm.NewOpenAICompatibleProvider(cfg),
 			}
-			return nil
+			report, err := service.ReviewPR(cmd.Context(), app.ReviewPRRequest{
+				Ref:           ref,
+				Config:        cfg,
+				MinSeverity:   opts.minSeverity,
+				MinConfidence: opts.minConfidence,
+				MaxFiles:      opts.maxFiles,
+			})
+			if report.Summary != "" || len(report.Findings) > 0 || len(report.SkippedFiles) > 0 {
+				printReviewReport(ref, report, err)
+			}
+			return err
 		},
 	}
 
@@ -113,30 +111,24 @@ func resolvePRRef(args []string, opts reviewOptions) (github.PRRef, error) {
 	}, nil
 }
 
-func classifyFiles(files []review.ChangedFile) {
-	for i := range files {
-		classification := diff.ClassifyFile(files[i].Path)
-		files[i].Language = classification.Language
-		files[i].FileKind = classification.FileKind
+func printReviewReport(ref github.PRRef, report review.ReviewReport, err error) {
+	fmt.Printf("AI PR Review %s/%s#%d\n", ref.Owner, ref.Repo, ref.Number)
+	fmt.Println()
+	if err != nil {
+		fmt.Printf("Warning: %v\n\n", err)
 	}
-}
-
-func printPRSummary(pr review.PullRequest, findings []review.Finding, aiReport review.ReviewReport, llmErr error) {
-	fmt.Printf("PR #%d %s/%s\n", pr.Number, pr.Owner, pr.Repo)
-	fmt.Printf("Title: %s\n", pr.Title)
-	fmt.Printf("Author: %s\n", pr.Author)
-	fmt.Printf("Base: %s\n", pr.BaseSHA)
-	fmt.Printf("Head: %s\n", pr.HeadSHA)
-	fmt.Printf("Changed files: %d\n", len(pr.Files))
-	for _, file := range pr.Files {
-		fmt.Printf("- %s (%s, %s/%s, +%d -%d)\n", file.Path, file.Status, emptyAsUnknown(file.Language), emptyAsUnknown(file.FileKind), file.Additions, file.Deletions)
+	fmt.Println("Summary")
+	fmt.Println(report.Summary)
+	if len(report.Impact) > 0 {
+		fmt.Println()
+		fmt.Println("Impact")
+		for _, item := range report.Impact {
+			fmt.Printf("- %s\n", item)
+		}
 	}
-	fmt.Printf("Commits: %d\n", len(pr.Commits))
-	for _, commit := range pr.Commits {
-		fmt.Printf("- %s %s (%s)\n", shortSHA(commit.SHA), firstLine(commit.Message), commit.Author)
-	}
-	fmt.Printf("Rule findings: %d\n", len(findings))
-	for _, finding := range findings {
+	fmt.Println()
+	fmt.Printf("Findings: %d\n", len(report.Findings))
+	for _, finding := range report.Findings {
 		location := finding.File
 		if finding.Line > 0 {
 			location = fmt.Sprintf("%s:%d", finding.File, finding.Line)
@@ -145,45 +137,23 @@ func printPRSummary(pr review.PullRequest, findings []review.Finding, aiReport r
 			location = "PR"
 		}
 		fmt.Printf("- [%s] %s %s\n", finding.Severity, location, finding.Title)
-	}
-	if llmErr != nil {
-		fmt.Printf("AI review: failed: %v\n", llmErr)
-		return
-	}
-	fmt.Println("AI review:")
-	fmt.Printf("Summary: %s\n", aiReport.Summary)
-	fmt.Printf("Findings: %d\n", len(aiReport.Findings))
-	for _, finding := range aiReport.Findings {
-		location := finding.File
-		if finding.Line > 0 {
-			location = fmt.Sprintf("%s:%d", finding.File, finding.Line)
+		if finding.Evidence != "" {
+			fmt.Printf("  Evidence: %s\n", finding.Evidence)
 		}
-		if location == "" {
-			location = "PR"
-		}
-		fmt.Printf("- [%s] %s %s\n", finding.Severity, location, finding.Title)
-	}
-}
-
-func emptyAsUnknown(value string) string {
-	if value == "" {
-		return "unknown"
-	}
-	return value
-}
-
-func shortSHA(sha string) string {
-	if len(sha) <= 7 {
-		return sha
-	}
-	return sha[:7]
-}
-
-func firstLine(message string) string {
-	for i, r := range message {
-		if r == '\n' || r == '\r' {
-			return message[:i]
+		if finding.Suggestion != "" {
+			fmt.Printf("  Suggestion: %s\n", finding.Suggestion)
 		}
 	}
-	return message
+	if report.TestAssessment != "" {
+		fmt.Println()
+		fmt.Println("Test Assessment")
+		fmt.Println(report.TestAssessment)
+	}
+	if len(report.SkippedFiles) > 0 {
+		fmt.Println()
+		fmt.Println("Skipped Files")
+		for _, file := range report.SkippedFiles {
+			fmt.Printf("- %s\n", file)
+		}
+	}
 }

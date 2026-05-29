@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"aireview/internal/diff"
 	"aireview/internal/github"
 	"aireview/internal/review"
 
@@ -67,7 +68,9 @@ func newReviewCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printPRSummary(pr)
+			classifyFiles(pr.Files)
+			findings := review.RuleAnalyzer{}.Analyze(pr)
+			printPRSummary(pr, findings)
 			return nil
 		},
 	}
@@ -96,7 +99,15 @@ func resolvePRRef(args []string, opts reviewOptions) (github.PRRef, error) {
 	}, nil
 }
 
-func printPRSummary(pr review.PullRequest) {
+func classifyFiles(files []review.ChangedFile) {
+	for i := range files {
+		classification := diff.ClassifyFile(files[i].Path)
+		files[i].Language = classification.Language
+		files[i].FileKind = classification.FileKind
+	}
+}
+
+func printPRSummary(pr review.PullRequest, findings []review.Finding) {
 	fmt.Printf("PR #%d %s/%s\n", pr.Number, pr.Owner, pr.Repo)
 	fmt.Printf("Title: %s\n", pr.Title)
 	fmt.Printf("Author: %s\n", pr.Author)
@@ -104,12 +115,30 @@ func printPRSummary(pr review.PullRequest) {
 	fmt.Printf("Head: %s\n", pr.HeadSHA)
 	fmt.Printf("Changed files: %d\n", len(pr.Files))
 	for _, file := range pr.Files {
-		fmt.Printf("- %s (%s, +%d -%d)\n", file.Path, file.Status, file.Additions, file.Deletions)
+		fmt.Printf("- %s (%s, %s/%s, +%d -%d)\n", file.Path, file.Status, emptyAsUnknown(file.Language), emptyAsUnknown(file.FileKind), file.Additions, file.Deletions)
 	}
 	fmt.Printf("Commits: %d\n", len(pr.Commits))
 	for _, commit := range pr.Commits {
 		fmt.Printf("- %s %s (%s)\n", shortSHA(commit.SHA), firstLine(commit.Message), commit.Author)
 	}
+	fmt.Printf("Rule findings: %d\n", len(findings))
+	for _, finding := range findings {
+		location := finding.File
+		if finding.Line > 0 {
+			location = fmt.Sprintf("%s:%d", finding.File, finding.Line)
+		}
+		if location == "" {
+			location = "PR"
+		}
+		fmt.Printf("- [%s] %s %s\n", finding.Severity, location, finding.Title)
+	}
+}
+
+func emptyAsUnknown(value string) string {
+	if value == "" {
+		return "unknown"
+	}
+	return value
 }
 
 func shortSHA(sha string) string {

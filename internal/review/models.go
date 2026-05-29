@@ -4,60 +4,60 @@ package review
 // External providers such as GitHub must map their API responses into this
 // structure before analysis starts.
 type PullRequest struct {
-	Owner   string
-	Repo    string
-	Number  int
-	Title   string
-	Body    string
-	Author  string
-	BaseSHA string
-	HeadSHA string
-	Files   []ChangedFile
-	Commits []Commit
+	Owner   string        `json:"owner"`
+	Repo    string        `json:"repo"`
+	Number  int           `json:"number"`
+	Title   string        `json:"title"`
+	Body    string        `json:"body"`
+	Author  string        `json:"author"`
+	BaseSHA string        `json:"base_sha"`
+	HeadSHA string        `json:"head_sha"`
+	Files   []ChangedFile `json:"files"`
+	Commits []Commit      `json:"commits"`
 }
 
 type ChangedFile struct {
-	Path      string
-	Status    string
-	Additions int
-	Deletions int
-	Patch     string
-	Language  string
-	FileKind  string
-	RiskHints []RiskHint
+	Path      string     `json:"path"`
+	Status    string     `json:"status"`
+	Additions int        `json:"additions"`
+	Deletions int        `json:"deletions"`
+	Patch     string     `json:"patch"`
+	Language  string     `json:"language"`
+	FileKind  string     `json:"file_kind"`
+	RiskHints []RiskHint `json:"risk_hints"`
 }
 
 type Commit struct {
-	SHA     string
-	Message string
-	Author  string
+	SHA     string `json:"sha"`
+	Message string `json:"message"`
+	Author  string `json:"author"`
 }
 
 type RiskHint struct {
-	Category string
-	Message  string
-	File     string
-	Line     int
+	Category string `json:"category"`
+	Message  string `json:"message"`
+	File     string `json:"file"`
+	Line     int    `json:"line"`
 }
 
 type Finding struct {
-	Severity        Severity
-	Confidence      float64
-	Category        Category
-	File            string
-	Line            int
-	Title           string
-	Evidence        string
-	Suggestion      string
-	NeedsHumanCheck bool
+	Severity        Severity `json:"severity"`
+	Confidence      float64  `json:"confidence"`
+	Category        Category `json:"category"`
+	File            string   `json:"file"`
+	Line            int      `json:"line"`
+	Title           string   `json:"title"`
+	Evidence        string   `json:"evidence"`
+	Suggestion      string   `json:"suggestion"`
+	NeedsHumanCheck bool     `json:"needs_human_check"`
 }
 
 type ReviewReport struct {
-	Summary        string
-	Impact         []string
-	Findings       []Finding
-	TestAssessment string
-	SkippedFiles   []string
+	Summary        string    `json:"summary"`
+	Impact         []string  `json:"impact"`
+	Findings       []Finding `json:"findings"`
+	TestAssessment string    `json:"test_assessment"`
+	SkippedFiles   []string  `json:"skipped_files"`
 }
 
 type Severity string

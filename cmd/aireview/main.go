@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 
+	"aireview/internal/config"
 	"aireview/internal/diff"
 	"aireview/internal/github"
+	"aireview/internal/llm"
 	"aireview/internal/review"
 
 	"github.com/spf13/cobra"
@@ -68,9 +70,21 @@ func newReviewCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			cfg, err := config.Load(opts.configPath)
+			if err != nil {
+				return err
+			}
 			classifyFiles(pr.Files)
 			findings := review.RuleAnalyzer{}.Analyze(pr)
-			printPRSummary(pr, findings)
+			report, llmErr := llm.NewOpenAICompatibleProvider(cfg).Review(cmd.Context(), llm.ReviewRequest{
+				PullRequest:  pr,
+				RuleFindings: findings,
+				Config:       cfg,
+			})
+			printPRSummary(pr, findings, report.Report, llmErr)
+			if llmErr != nil {
+				return llmErr
+			}
 			return nil
 		},
 	}
@@ -80,7 +94,7 @@ func newReviewCommand() *cobra.Command {
 	cmd.Flags().IntVar(&opts.prNumber, "pr", 0, "GitHub pull request number")
 	cmd.Flags().StringVar(&opts.output, "output", "", "write Markdown report to this file")
 	cmd.Flags().StringVar(&opts.format, "format", "text", "output format: text or markdown")
-	cmd.Flags().StringVar(&opts.configPath, "config", "", "path to .aireview.yml")
+	cmd.Flags().StringVar(&opts.configPath, "config", "", "path to .aireview.toml")
 	cmd.Flags().StringVar(&opts.minSeverity, "min-severity", "", "minimum severity to include: low, medium or high")
 	cmd.Flags().Float64Var(&opts.minConfidence, "min-confidence", 0, "minimum confidence to include")
 	cmd.Flags().IntVar(&opts.maxFiles, "max-files", 0, "maximum number of changed files to analyze")
@@ -107,7 +121,7 @@ func classifyFiles(files []review.ChangedFile) {
 	}
 }
 
-func printPRSummary(pr review.PullRequest, findings []review.Finding) {
+func printPRSummary(pr review.PullRequest, findings []review.Finding, aiReport review.ReviewReport, llmErr error) {
 	fmt.Printf("PR #%d %s/%s\n", pr.Number, pr.Owner, pr.Repo)
 	fmt.Printf("Title: %s\n", pr.Title)
 	fmt.Printf("Author: %s\n", pr.Author)
@@ -123,6 +137,23 @@ func printPRSummary(pr review.PullRequest, findings []review.Finding) {
 	}
 	fmt.Printf("Rule findings: %d\n", len(findings))
 	for _, finding := range findings {
+		location := finding.File
+		if finding.Line > 0 {
+			location = fmt.Sprintf("%s:%d", finding.File, finding.Line)
+		}
+		if location == "" {
+			location = "PR"
+		}
+		fmt.Printf("- [%s] %s %s\n", finding.Severity, location, finding.Title)
+	}
+	if llmErr != nil {
+		fmt.Printf("AI review: failed: %v\n", llmErr)
+		return
+	}
+	fmt.Println("AI review:")
+	fmt.Printf("Summary: %s\n", aiReport.Summary)
+	fmt.Printf("Findings: %d\n", len(aiReport.Findings))
+	for _, finding := range aiReport.Findings {
 		location := finding.File
 		if finding.Line > 0 {
 			location = fmt.Sprintf("%s:%d", finding.File, finding.Line)

@@ -29,6 +29,21 @@ type EventSink interface {
 	Emit(ctx context.Context, event Event) error
 }
 
+type SessionEventSink struct {
+	SessionID string
+	Sink      EventSink
+}
+
+func (s SessionEventSink) Emit(ctx context.Context, event Event) error {
+	if s.Sink == nil {
+		return nil
+	}
+	if event.SessionID == "" {
+		event.SessionID = s.SessionID
+	}
+	return s.Sink.Emit(ctx, event)
+}
+
 func emit(ctx context.Context, sink EventSink, eventType string, message string) error {
 	if sink == nil {
 		return nil

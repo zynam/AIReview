@@ -3,6 +3,7 @@ package session
 import (
 	"time"
 
+	"aireview/internal/agent"
 	"aireview/internal/review"
 )
 
@@ -39,6 +40,7 @@ type ReviewSession struct {
 type ReviewDetail struct {
 	ReviewSession
 	Findings []review.Finding `json:"findings"`
+	LLMCalls []LLMCall        `json:"llm_calls,omitempty"`
 }
 
 type ContextChunk struct {
@@ -50,6 +52,33 @@ type ContextChunk struct {
 	Tokens    int       `json:"tokens"`
 	Score     float64   `json:"score"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type ReviewEvent struct {
+	ID        string    `json:"id"`
+	SessionID string    `json:"session_id"`
+	Type      string    `json:"type"`
+	Message   string    `json:"message"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type LLMCall struct {
+	ID                 string    `json:"id"`
+	SessionID          string    `json:"session_id"`
+	Model              string    `json:"model"`
+	FileCount          int       `json:"file_count"`
+	RuleFindingCount   int       `json:"rule_finding_count"`
+	ContextChunks      int       `json:"context_chunks"`
+	KeptChunks         int       `json:"kept_chunks"`
+	SkippedFiles       int       `json:"skipped_files"`
+	PromptTokensApprox int       `json:"prompt_tokens_approx"`
+	DurationMillis     int64     `json:"duration_millis"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type AgentArtifacts struct {
+	ContextChunks []ContextChunk
+	Metrics       agent.Metrics
 }
 
 type ListFilter struct {

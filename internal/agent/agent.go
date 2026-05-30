@@ -21,4 +21,5 @@ type AnalyzeRequest struct {
 type AnalyzeResult struct {
 	Report  review.ReviewReport
 	Metrics Metrics
+	Context State
 }

@@ -16,7 +16,11 @@ type Store interface {
 	UpdateStatus(ctx context.Context, id string, status Status, message string) error
 	UpdateHeadSHA(ctx context.Context, id string, headSHA string) error
 	SaveReport(ctx context.Context, id string, report review.ReviewReport) error
+	SaveAgentArtifacts(ctx context.Context, id string, artifacts AgentArtifacts) error
 	ListFindings(ctx context.Context, sessionID string) ([]review.Finding, error)
 	ListContexts(ctx context.Context, sessionID string) ([]ContextChunk, error)
+	ListEvents(ctx context.Context, sessionID string) ([]ReviewEvent, error)
+	ListLLMCalls(ctx context.Context, sessionID string) ([]LLMCall, error)
+	SaveReviewEvent(ctx context.Context, event ReviewEvent) error
 	UpdateFindingFeedback(ctx context.Context, findingID string, status string) error
 }

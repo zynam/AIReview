@@ -49,6 +49,7 @@ export interface Finding {
 export interface ReviewDetail extends ReviewSession {
   findings: Finding[];
   skipped_files: string[];
+  llm_calls?: LLMCall[];
 }
 
 export interface ContextChunk {
@@ -58,6 +59,28 @@ export interface ContextChunk {
   content: string;
   tokens: number;
   score: number;
+}
+
+export interface ReviewEvent {
+  id: string;
+  session_id: string;
+  type: string;
+  message: string;
+  created_at: string;
+}
+
+export interface LLMCall {
+  id: string;
+  session_id: string;
+  model: string;
+  file_count: number;
+  rule_finding_count: number;
+  context_chunks: number;
+  kept_chunks: number;
+  skipped_files: number;
+  prompt_tokens_approx: number;
+  duration_millis: number;
+  created_at: string;
 }
 
 export interface ListReviewsParams {

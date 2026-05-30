@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"aireview/internal/agent"
 	"aireview/internal/review"
 	"aireview/internal/session"
 
@@ -85,6 +86,24 @@ type reviewEventRecord struct {
 
 func (reviewEventRecord) TableName() string {
 	return "review_events"
+}
+
+type llmCallRecord struct {
+	ID                 string    `gorm:"primaryKey;size:36"`
+	SessionID          string    `gorm:"size:36;not null;index:idx_session_created,priority:1"`
+	Model              string    `gorm:"size:128;not null;default:''"`
+	FileCount          int       `gorm:"not null;default:0"`
+	RuleFindingCount   int       `gorm:"not null;default:0"`
+	ContextChunks      int       `gorm:"not null;default:0"`
+	KeptChunks         int       `gorm:"not null;default:0"`
+	SkippedFiles       int       `gorm:"not null;default:0"`
+	PromptTokensApprox int       `gorm:"not null;default:0"`
+	DurationMillis     int64     `gorm:"not null;default:0"`
+	CreatedAt          time.Time `gorm:"not null;index:idx_session_created,priority:2"`
+}
+
+func (llmCallRecord) TableName() string {
+	return "llm_calls"
 }
 
 func OpenMySQL(ctx context.Context, dsn string) (*gorm.DB, error) {
@@ -253,6 +272,43 @@ func (s *MySQLStore) SaveReport(ctx context.Context, id string, report review.Re
 	})
 }
 
+func (s *MySQLStore) SaveAgentArtifacts(ctx context.Context, id string, artifacts session.AgentArtifacts) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := requireSessionExists(tx, id); err != nil {
+			return err
+		}
+		if err := tx.Where("session_id = ?", id).Delete(&contextChunkRecord{}).Error; err != nil {
+			return fmt.Errorf("replace context chunks: %w", err)
+		}
+		if len(artifacts.ContextChunks) > 0 {
+			now := time.Now()
+			records := make([]contextChunkRecord, 0, len(artifacts.ContextChunks))
+			for _, chunk := range artifacts.ContextChunks {
+				if chunk.ID == "" {
+					chunk.ID = session.NewID()
+				}
+				if chunk.CreatedAt.IsZero() {
+					chunk.CreatedAt = now
+				}
+				chunk.SessionID = id
+				records = append(records, contextChunkToRecord(chunk))
+			}
+			if err := tx.Create(&records).Error; err != nil {
+				return fmt.Errorf("insert context chunks: %w", err)
+			}
+		}
+
+		if err := tx.Where("session_id = ?", id).Delete(&llmCallRecord{}).Error; err != nil {
+			return fmt.Errorf("replace llm calls: %w", err)
+		}
+		call := llmCallToRecord(id, artifacts.Metrics, time.Now())
+		if err := tx.Create(&call).Error; err != nil {
+			return fmt.Errorf("insert llm call: %w", err)
+		}
+		return nil
+	})
+}
+
 func (s *MySQLStore) ListFindings(ctx context.Context, sessionID string) ([]review.Finding, error) {
 	var records []findingRecord
 	if err := s.db.WithContext(ctx).
@@ -267,6 +323,60 @@ func (s *MySQLStore) ListFindings(ctx context.Context, sessionID string) ([]revi
 		findings = append(findings, recordToFinding(record))
 	}
 	return findings, nil
+}
+
+func (s *MySQLStore) ListEvents(ctx context.Context, sessionID string) ([]session.ReviewEvent, error) {
+	var records []reviewEventRecord
+	if err := s.db.WithContext(ctx).
+		Where("session_id = ?", sessionID).
+		Order("created_at asc").
+		Find(&records).Error; err != nil {
+		return nil, fmt.Errorf("list review events: %w", err)
+	}
+
+	events := make([]session.ReviewEvent, 0, len(records))
+	for _, record := range records {
+		events = append(events, eventRecordToSession(record))
+	}
+	return events, nil
+}
+
+func (s *MySQLStore) ListLLMCalls(ctx context.Context, sessionID string) ([]session.LLMCall, error) {
+	var records []llmCallRecord
+	if err := s.db.WithContext(ctx).
+		Where("session_id = ?", sessionID).
+		Order("created_at asc").
+		Find(&records).Error; err != nil {
+		return nil, fmt.Errorf("list llm calls: %w", err)
+	}
+
+	calls := make([]session.LLMCall, 0, len(records))
+	for _, record := range records {
+		calls = append(calls, llmCallRecordToSession(record))
+	}
+	return calls, nil
+}
+
+func (s *MySQLStore) SaveReviewEvent(ctx context.Context, event session.ReviewEvent) error {
+	if err := requireSessionExists(s.db.WithContext(ctx), event.SessionID); err != nil {
+		return err
+	}
+	if event.ID == "" {
+		event.ID = session.NewID()
+	}
+	if event.CreatedAt.IsZero() {
+		event.CreatedAt = time.Now()
+	}
+	if err := s.db.WithContext(ctx).Create(&reviewEventRecord{
+		ID:        event.ID,
+		SessionID: event.SessionID,
+		Type:      event.Type,
+		Message:   event.Message,
+		CreatedAt: event.CreatedAt,
+	}).Error; err != nil {
+		return fmt.Errorf("insert review event: %w", err)
+	}
+	return nil
 }
 
 func (s *MySQLStore) ListContexts(ctx context.Context, sessionID string) ([]session.ContextChunk, error) {
@@ -358,6 +468,61 @@ func findingToRecord(sessionID string, finding review.Finding, createdAt time.Ti
 		NeedsHumanCheck: finding.NeedsHumanCheck,
 		FeedbackStatus:  finding.FeedbackStatus,
 		CreatedAt:       createdAt,
+	}
+}
+
+func contextChunkToRecord(chunk session.ContextChunk) contextChunkRecord {
+	return contextChunkRecord{
+		ID:        chunk.ID,
+		SessionID: chunk.SessionID,
+		File:      chunk.File,
+		Kind:      chunk.Kind,
+		Content:   chunk.Content,
+		Tokens:    chunk.Tokens,
+		Score:     chunk.Score,
+		CreatedAt: chunk.CreatedAt,
+	}
+}
+
+func eventRecordToSession(record reviewEventRecord) session.ReviewEvent {
+	return session.ReviewEvent{
+		ID:        record.ID,
+		SessionID: record.SessionID,
+		Type:      record.Type,
+		Message:   record.Message,
+		CreatedAt: record.CreatedAt,
+	}
+}
+
+func llmCallToRecord(sessionID string, metrics agent.Metrics, createdAt time.Time) llmCallRecord {
+	return llmCallRecord{
+		ID:                 session.NewID(),
+		SessionID:          sessionID,
+		Model:              metrics.Model,
+		FileCount:          metrics.FileCount,
+		RuleFindingCount:   metrics.RuleFindingCount,
+		ContextChunks:      metrics.ContextChunks,
+		KeptChunks:         metrics.KeptChunks,
+		SkippedFiles:       metrics.SkippedFiles,
+		PromptTokensApprox: metrics.PromptTokensApprox,
+		DurationMillis:     metrics.DurationMillis,
+		CreatedAt:          createdAt,
+	}
+}
+
+func llmCallRecordToSession(record llmCallRecord) session.LLMCall {
+	return session.LLMCall{
+		ID:                 record.ID,
+		SessionID:          record.SessionID,
+		Model:              record.Model,
+		FileCount:          record.FileCount,
+		RuleFindingCount:   record.RuleFindingCount,
+		ContextChunks:      record.ContextChunks,
+		KeptChunks:         record.KeptChunks,
+		SkippedFiles:       record.SkippedFiles,
+		PromptTokensApprox: record.PromptTokensApprox,
+		DurationMillis:     record.DurationMillis,
+		CreatedAt:          record.CreatedAt,
 	}
 }
 

@@ -97,6 +97,15 @@ func (h ReviewHandler) Contexts(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": chunks})
 }
 
+func (h ReviewHandler) Events(c *gin.Context) {
+	events, err := h.Store.ListEvents(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": events})
+}
+
 func mergeConfig(base config.Config, req createReviewConfig) config.Config {
 	cfg := base
 	if strings.TrimSpace(os.Getenv("LLM_MODEL")) == "" && strings.TrimSpace(req.Model) != "" {

@@ -7,7 +7,9 @@ import (
 	"runtime/debug"
 	"time"
 
+	"aireview/internal/agent"
 	"aireview/internal/app"
+	"aireview/internal/reviewcontext"
 	"aireview/internal/session"
 )
 
@@ -55,9 +57,10 @@ func (w *Worker) process(parent context.Context, job ReviewJob) {
 	}
 
 	result, err := w.ReviewService.ReviewPRWithDetails(ctx, app.ReviewPRRequest{
-		Ref:      job.Ref,
-		Config:   job.Config,
-		MaxFiles: job.MaxFiles,
+		Ref:       job.Ref,
+		Config:    job.Config,
+		MaxFiles:  job.MaxFiles,
+		EventSink: agent.SessionEventSink{SessionID: job.SessionID, Sink: storeEventSink{Store: w.Store}},
 	})
 	if err != nil {
 		_ = w.Store.UpdateStatus(context.Background(), job.SessionID, session.StatusFailed, err.Error())
@@ -73,7 +76,47 @@ func (w *Worker) process(parent context.Context, job ReviewJob) {
 		_ = w.Store.UpdateStatus(context.Background(), job.SessionID, session.StatusFailed, err.Error())
 		return
 	}
+	if err := w.Store.SaveAgentArtifacts(ctx, job.SessionID, session.AgentArtifacts{
+		ContextChunks: contextChunks(result.Agent.Context.CompressedContext),
+		Metrics:       result.Agent.Metrics,
+	}); err != nil {
+		_ = w.Store.UpdateStatus(context.Background(), job.SessionID, session.StatusFailed, err.Error())
+		return
+	}
 	if err := w.Store.UpdateStatus(ctx, job.SessionID, session.StatusCompleted, ""); err != nil {
 		log.Printf("update review status to completed: %v", err)
 	}
+}
+
+type storeEventSink struct {
+	Store session.Store
+}
+
+func (s storeEventSink) Emit(ctx context.Context, event agent.Event) error {
+	if event.SessionID == "" || s.Store == nil {
+		return nil
+	}
+	return s.Store.SaveReviewEvent(ctx, session.ReviewEvent{
+		SessionID: event.SessionID,
+		Type:      event.Type,
+		Message:   event.Message,
+		CreatedAt: event.Time,
+	})
+}
+
+func contextChunks(ctx reviewcontext.ReviewContext) []session.ContextChunk {
+	chunks := make([]session.ContextChunk, 0, len(ctx.Chunks))
+	now := time.Now()
+	for _, chunk := range ctx.Chunks {
+		chunks = append(chunks, session.ContextChunk{
+			ID:        session.NewID(),
+			File:      chunk.File,
+			Kind:      string(chunk.Kind),
+			Content:   chunk.Content,
+			Tokens:    chunk.Tokens,
+			Score:     chunk.Score,
+			CreatedAt: now,
+		})
+	}
+	return chunks
 }

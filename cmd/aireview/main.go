@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"strings"
 
 	"aireview/internal/app"
 	"aireview/internal/config"
 	"aireview/internal/github"
 	"aireview/internal/llm"
+	reportout "aireview/internal/report"
 	"aireview/internal/review"
 
 	"github.com/spf13/cobra"
@@ -81,7 +84,9 @@ func newReviewCommand() *cobra.Command {
 				MaxFiles:      opts.maxFiles,
 			})
 			if report.Summary != "" || len(report.Findings) > 0 || len(report.SkippedFiles) > 0 {
-				printReviewReport(ref, report, err)
+				if outputErr := writeReviewOutput(ref, report, err, opts); outputErr != nil {
+					return outputErr
+				}
 			}
 			return err
 		},
@@ -111,49 +116,31 @@ func resolvePRRef(args []string, opts reviewOptions) (github.PRRef, error) {
 	}, nil
 }
 
-func printReviewReport(ref github.PRRef, report review.ReviewReport, err error) {
-	fmt.Printf("AI PR Review %s/%s#%d\n", ref.Owner, ref.Repo, ref.Number)
-	fmt.Println()
-	if err != nil {
-		fmt.Printf("Warning: %v\n\n", err)
+func writeReviewOutput(ref github.PRRef, report review.ReviewReport, warning error, opts reviewOptions) error {
+	format := strings.ToLower(strings.TrimSpace(opts.format))
+	if format == "" {
+		format = "text"
 	}
-	fmt.Println("Summary")
-	fmt.Println(report.Summary)
-	if len(report.Impact) > 0 {
-		fmt.Println()
-		fmt.Println("Impact")
-		for _, item := range report.Impact {
-			fmt.Printf("- %s\n", item)
-		}
+	if format != "text" && format != "markdown" {
+		return fmt.Errorf("unsupported output format %q: use text or markdown", opts.format)
 	}
-	fmt.Println()
-	fmt.Printf("Findings: %d\n", len(report.Findings))
-	for _, finding := range report.Findings {
-		location := finding.File
-		if finding.Line > 0 {
-			location = fmt.Sprintf("%s:%d", finding.File, finding.Line)
+
+	if opts.output != "" {
+		var markdown bytes.Buffer
+		if err := reportout.WriteMarkdown(&markdown, ref, report, warning); err != nil {
+			return err
 		}
-		if location == "" {
-			location = "PR"
-		}
-		fmt.Printf("- [%s] %s %s\n", finding.Severity, location, finding.Title)
-		if finding.Evidence != "" {
-			fmt.Printf("  Evidence: %s\n", finding.Evidence)
-		}
-		if finding.Suggestion != "" {
-			fmt.Printf("  Suggestion: %s\n", finding.Suggestion)
+		if err := os.WriteFile(opts.output, markdown.Bytes(), 0o644); err != nil {
+			return fmt.Errorf("write Markdown report %s: %w", opts.output, err)
 		}
 	}
-	if report.TestAssessment != "" {
-		fmt.Println()
-		fmt.Println("Test Assessment")
-		fmt.Println(report.TestAssessment)
-	}
-	if len(report.SkippedFiles) > 0 {
-		fmt.Println()
-		fmt.Println("Skipped Files")
-		for _, file := range report.SkippedFiles {
-			fmt.Printf("- %s\n", file)
+
+	if format == "markdown" {
+		if opts.output != "" {
+			fmt.Fprintf(os.Stdout, "Markdown report written to %s\n", opts.output)
+			return nil
 		}
+		return reportout.WriteMarkdown(os.Stdout, ref, report, warning)
 	}
+	return reportout.WriteTerminal(os.Stdout, ref, report, warning)
 }

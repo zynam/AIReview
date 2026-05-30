@@ -27,29 +27,29 @@ type PublishConfig struct {
 }
 
 type LLMConfig struct {
-	BaseURL   string `toml:"base_url"`
-	APIKeyEnv string `toml:"api_key_env"`
-	Model     string `toml:"model"`
+	BaseURL string `toml:"base_url"`
+	APIKey  string `toml:"api_key"`
+	Model   string `toml:"model"`
 }
 
 func DefaultConfig() Config {
 	return Config{
 		Language: "zh-CN",
 		LLM: LLMConfig{
-			BaseURL:   "https://api.deepseek.com",
-			APIKeyEnv: "LLM_API_KEY",
-			Model:     "deepseek-chat",
+			BaseURL: "https://api.deepseek.com",
+			Model:   "deepseek-chat",
 		},
 	}
 }
 
 func Load(path string) (Config, error) {
 	cfg := DefaultConfig()
-	applyEnvFallbacks(&cfg)
 
 	if strings.TrimSpace(path) == "" {
 		path = DefaultConfigPath
 		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+			applyEnvFallbacks(&cfg)
+			normalize(&cfg)
 			return cfg, nil
 		} else if err != nil {
 			return Config{}, fmt.Errorf("stat config file %s: %w", path, err)
@@ -59,6 +59,8 @@ func Load(path string) (Config, error) {
 	if _, err := toml.DecodeFile(path, &cfg); err != nil {
 		return Config{}, fmt.Errorf("load config file %s: %w", path, err)
 	}
+	normalize(&cfg)
+	applyEnvFallbacks(&cfg)
 	normalize(&cfg)
 	return cfg, nil
 }
@@ -70,16 +72,13 @@ func applyEnvFallbacks(cfg *Config) {
 	if model := strings.TrimSpace(os.Getenv("LLM_MODEL")); model != "" {
 		cfg.LLM.Model = model
 	}
-	if apiKeyEnv := strings.TrimSpace(os.Getenv("LLM_API_KEY_ENV")); apiKeyEnv != "" {
-		cfg.LLM.APIKeyEnv = apiKeyEnv
-	}
 }
 
 func normalize(cfg *Config) {
 	cfg.Language = strings.TrimSpace(cfg.Language)
 	cfg.MinSeverityToPublish = strings.TrimSpace(cfg.MinSeverityToPublish)
 	cfg.LLM.BaseURL = strings.TrimRight(strings.TrimSpace(cfg.LLM.BaseURL), "/")
-	cfg.LLM.APIKeyEnv = strings.TrimSpace(cfg.LLM.APIKeyEnv)
+	cfg.LLM.APIKey = strings.TrimSpace(cfg.LLM.APIKey)
 	cfg.LLM.Model = strings.TrimSpace(cfg.LLM.Model)
 
 	if cfg.Language == "" {
@@ -87,9 +86,6 @@ func normalize(cfg *Config) {
 	}
 	if cfg.LLM.BaseURL == "" {
 		cfg.LLM.BaseURL = DefaultConfig().LLM.BaseURL
-	}
-	if cfg.LLM.APIKeyEnv == "" {
-		cfg.LLM.APIKeyEnv = DefaultConfig().LLM.APIKeyEnv
 	}
 	if cfg.LLM.Model == "" {
 		cfg.LLM.Model = DefaultConfig().LLM.Model

@@ -41,6 +41,7 @@ type RiskHint struct {
 }
 
 type Finding struct {
+	ID              string   `json:"id,omitempty"`
 	Severity        Severity `json:"severity"`
 	Confidence      float64  `json:"confidence"`
 	Category        Category `json:"category"`
@@ -50,6 +51,7 @@ type Finding struct {
 	Evidence        string   `json:"evidence"`
 	Suggestion      string   `json:"suggestion"`
 	NeedsHumanCheck bool     `json:"needs_human_check"`
+	FeedbackStatus  string   `json:"feedback_status,omitempty"`
 }
 
 type ReviewReport struct {

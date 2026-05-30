@@ -1,6 +1,8 @@
 docs
 .idea
 .gocache/
+.gomodcache/
+.gopath/
 web/node_modules/
 web/dist/
 web/.vite/

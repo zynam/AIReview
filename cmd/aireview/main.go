@@ -7,11 +7,11 @@ import (
 	"os"
 	"strings"
 
+	reviewagent "aireview/internal/agent"
 	"aireview/internal/app"
 	"aireview/internal/config"
 	"aireview/internal/github"
 	"aireview/internal/jobs"
-	"aireview/internal/llm"
 	reportout "aireview/internal/report"
 	"aireview/internal/review"
 	"aireview/internal/server"
@@ -86,7 +86,7 @@ func newReviewCommand() *cobra.Command {
 			}
 			service := app.ReviewService{
 				GitHub: github.NewClient(),
-				LLM:    llm.NewOpenAICompatibleProvider(cfg),
+				Agent:  reviewagent.NewEinoReviewAgent(),
 			}
 			report, err := service.ReviewPR(cmd.Context(), app.ReviewPRRequest{
 				Ref:           ref,
@@ -161,7 +161,7 @@ func newServerCommand() *cobra.Command {
 			queue := jobs.NewQueue(100)
 			reviewService := &app.ReviewService{
 				GitHub: github.NewClient(),
-				LLM:    llm.NewOpenAICompatibleProvider(cfg),
+				Agent:  reviewagent.NewEinoReviewAgent(),
 			}
 			worker := jobs.Worker{
 				Queue:         queue,

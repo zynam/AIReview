@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
+	"aireview/internal/agent"
 	"aireview/internal/config"
 	"aireview/internal/diff"
 	"aireview/internal/github"
-	"aireview/internal/llm"
 	"aireview/internal/review"
 )
 
 type ReviewService struct {
 	GitHub github.Client
-	LLM    llm.Provider
+	Agent  agent.ReviewAgent
 }
 
 type ReviewPRRequest struct {
@@ -22,6 +22,7 @@ type ReviewPRRequest struct {
 	MinSeverity   string
 	MinConfidence float64
 	MaxFiles      int
+	EventSink     agent.EventSink
 }
 
 type ReviewPRResult struct {
@@ -38,8 +39,8 @@ func (s *ReviewService) ReviewPRWithDetails(ctx context.Context, req ReviewPRReq
 	if s.GitHub == nil {
 		return ReviewPRResult{}, fmt.Errorf("github client is required")
 	}
-	if s.LLM == nil {
-		return ReviewPRResult{}, fmt.Errorf("LLM provider is required")
+	if s.Agent == nil {
+		return ReviewPRResult{}, fmt.Errorf("review agent is required")
 	}
 
 	pr, err := s.GitHub.GetPullRequest(ctx, req.Ref)
@@ -56,16 +57,17 @@ func (s *ReviewService) ReviewPRWithDetails(ctx context.Context, req ReviewPRReq
 	minConfidence := minConfidence(req)
 
 	ruleHints := review.RuleAnalyzer{}.Analyze(pr)
-	aiResponse, err := s.LLM.Review(ctx, llm.ReviewRequest{
+	agentResult, err := s.Agent.Analyze(ctx, agent.AnalyzeRequest{
 		PullRequest:  pr,
 		RuleFindings: ruleHints,
 		Config:       req.Config,
+		EventSink:    req.EventSink,
 	})
 	if err != nil {
 		return ReviewPRResult{PullRequest: pr}, err
 	}
 
-	report := aiResponse.Report
+	report := agentResult.Report
 	report.SkippedFiles = append(report.SkippedFiles, skippedFiles...)
 	report.Findings = review.FilterFindings(report.Findings, minSeverity, minConfidence)
 	review.SortFindings(report.Findings)

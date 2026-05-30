@@ -132,6 +132,18 @@ func newServerCommand() *cobra.Command {
 			if dsn == "" {
 				dsn = strings.TrimSpace(os.Getenv("MYSQL_DSN"))
 			}
+			if dsn == "" {
+				dsn = strings.TrimSpace(cfg.MySQL.DSN)
+			}
+			if dsn == "" {
+				router := server.NewRouter(server.Dependencies{})
+				addr := fmt.Sprintf(":%d", opts.port)
+				httpServer := &http.Server{
+					Addr:    addr,
+					Handler: router,
+				}
+				return httpServer.ListenAndServe()
+			}
 			db, err := storage.OpenMySQL(cmd.Context(), dsn)
 			if err != nil {
 				return err

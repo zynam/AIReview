@@ -6,5 +6,8 @@ base_url = "https://api.deepseek.com"
 api_key = "sk-3ed288c73aab41b3b83ddbd015b4379c"
 model = "deepseek-v4-pro"
 
+[mysql]
+dsn = "root:123456@tcp(127.0.0.1:3306)/aireview?parseTime=true&charset=utf8mb4&loc=Local"
+
 [publish]
 enabled = false

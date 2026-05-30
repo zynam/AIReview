@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"os"
 	"strings"
 
 	"aireview/internal/config"
@@ -53,6 +54,7 @@ func (h ReviewHandler) Create(c *gin.Context) {
 		Config:    cfg,
 		MaxFiles:  req.Config.MaxFiles,
 	}); err != nil {
+		_ = h.Store.UpdateStatus(c.Request.Context(), result.Session.ID, session.StatusFailed, err.Error())
 		writeError(c, http.StatusServiceUnavailable, err)
 		return
 	}
@@ -97,7 +99,7 @@ func (h ReviewHandler) Contexts(c *gin.Context) {
 
 func mergeConfig(base config.Config, req createReviewConfig) config.Config {
 	cfg := base
-	if strings.TrimSpace(req.Model) != "" {
+	if strings.TrimSpace(os.Getenv("LLM_MODEL")) == "" && strings.TrimSpace(req.Model) != "" {
 		cfg.LLM.Model = strings.TrimSpace(req.Model)
 	}
 	if len(req.ReviewFocus) > 0 {

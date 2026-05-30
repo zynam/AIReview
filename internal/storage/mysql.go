@@ -176,6 +176,9 @@ func (s *MySQLStore) ListSessions(ctx context.Context, filter session.ListFilter
 
 func (s *MySQLStore) UpdateStatus(ctx context.Context, id string, status session.Status, message string) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := requireSessionExists(tx, id); err != nil {
+			return err
+		}
 		result := tx.Model(&reviewSessionRecord{}).Where("id = ?", id).Updates(map[string]any{
 			"status":     status,
 			"error":      message,
@@ -183,9 +186,6 @@ func (s *MySQLStore) UpdateStatus(ctx context.Context, id string, status session
 		})
 		if result.Error != nil {
 			return fmt.Errorf("update review status: %w", result.Error)
-		}
-		if result.RowsAffected == 0 {
-			return session.ErrNotFound
 		}
 
 		event := reviewEventRecord{
@@ -202,8 +202,25 @@ func (s *MySQLStore) UpdateStatus(ctx context.Context, id string, status session
 	})
 }
 
+func (s *MySQLStore) UpdateHeadSHA(ctx context.Context, id string, headSHA string) error {
+	if err := requireSessionExists(s.db.WithContext(ctx), id); err != nil {
+		return err
+	}
+	result := s.db.WithContext(ctx).Model(&reviewSessionRecord{}).Where("id = ?", id).Updates(map[string]any{
+		"head_sha":   headSHA,
+		"updated_at": time.Now(),
+	})
+	if result.Error != nil {
+		return fmt.Errorf("update review head sha: %w", result.Error)
+	}
+	return nil
+}
+
 func (s *MySQLStore) SaveReport(ctx context.Context, id string, report review.ReviewReport) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := requireSessionExists(tx, id); err != nil {
+			return err
+		}
 		result := tx.Model(&reviewSessionRecord{}).Where("id = ?", id).Updates(map[string]any{
 			"summary":            report.Summary,
 			"impact_json":        jsonText(report.Impact),
@@ -214,9 +231,6 @@ func (s *MySQLStore) SaveReport(ctx context.Context, id string, report review.Re
 		})
 		if result.Error != nil {
 			return fmt.Errorf("update review report: %w", result.Error)
-		}
-		if result.RowsAffected == 0 {
-			return session.ErrNotFound
 		}
 		if err := tx.Where("session_id = ?", id).Delete(&findingRecord{}).Error; err != nil {
 			return fmt.Errorf("replace findings: %w", err)
@@ -281,12 +295,12 @@ func (s *MySQLStore) ListContexts(ctx context.Context, sessionID string) ([]sess
 }
 
 func (s *MySQLStore) UpdateFindingFeedback(ctx context.Context, findingID string, status string) error {
+	if err := requireFindingExists(s.db.WithContext(ctx), findingID); err != nil {
+		return err
+	}
 	result := s.db.WithContext(ctx).Model(&findingRecord{}).Where("id = ?", findingID).Update("feedback_status", status)
 	if result.Error != nil {
 		return fmt.Errorf("update finding feedback: %w", result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return session.ErrNotFound
 	}
 	return nil
 }
@@ -387,4 +401,26 @@ func mapNotFound(err error) error {
 		return session.ErrNotFound
 	}
 	return fmt.Errorf("get review session: %w", err)
+}
+
+func requireSessionExists(db *gorm.DB, id string) error {
+	var count int64
+	if err := db.Model(&reviewSessionRecord{}).Where("id = ?", id).Count(&count).Error; err != nil {
+		return fmt.Errorf("check review session exists: %w", err)
+	}
+	if count == 0 {
+		return session.ErrNotFound
+	}
+	return nil
+}
+
+func requireFindingExists(db *gorm.DB, id string) error {
+	var count int64
+	if err := db.Model(&findingRecord{}).Where("id = ?", id).Count(&count).Error; err != nil {
+		return fmt.Errorf("check finding exists: %w", err)
+	}
+	if count == 0 {
+		return session.ErrNotFound
+	}
+	return nil
 }

@@ -24,24 +24,34 @@ type ReviewPRRequest struct {
 	MaxFiles      int
 }
 
+type ReviewPRResult struct {
+	Report      review.ReviewReport
+	PullRequest review.PullRequest
+}
+
 func (s *ReviewService) ReviewPR(ctx context.Context, req ReviewPRRequest) (review.ReviewReport, error) {
+	result, err := s.ReviewPRWithDetails(ctx, req)
+	return result.Report, err
+}
+
+func (s *ReviewService) ReviewPRWithDetails(ctx context.Context, req ReviewPRRequest) (ReviewPRResult, error) {
 	if s.GitHub == nil {
-		return review.ReviewReport{}, fmt.Errorf("github client is required")
+		return ReviewPRResult{}, fmt.Errorf("github client is required")
 	}
 	if s.LLM == nil {
-		return review.ReviewReport{}, fmt.Errorf("LLM provider is required")
+		return ReviewPRResult{}, fmt.Errorf("LLM provider is required")
 	}
 
 	pr, err := s.GitHub.GetPullRequest(ctx, req.Ref)
 	if err != nil {
-		return review.ReviewReport{}, err
+		return ReviewPRResult{}, err
 	}
 	classifyFiles(pr.Files)
 	pr, skippedFiles := limitFiles(pr, req.MaxFiles)
 
 	minSeverity, err := minSeverity(req)
 	if err != nil {
-		return review.ReviewReport{}, err
+		return ReviewPRResult{PullRequest: pr}, err
 	}
 	minConfidence := minConfidence(req)
 
@@ -52,14 +62,17 @@ func (s *ReviewService) ReviewPR(ctx context.Context, req ReviewPRRequest) (revi
 		Config:       req.Config,
 	})
 	if err != nil {
-		return review.ReviewReport{}, err
+		return ReviewPRResult{PullRequest: pr}, err
 	}
 
 	report := aiResponse.Report
 	report.SkippedFiles = append(report.SkippedFiles, skippedFiles...)
 	report.Findings = review.FilterFindings(report.Findings, minSeverity, minConfidence)
 	review.SortFindings(report.Findings)
-	return report, nil
+	return ReviewPRResult{
+		Report:      report,
+		PullRequest: pr,
+	}, nil
 }
 
 func classifyFiles(files []review.ChangedFile) {

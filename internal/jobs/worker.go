@@ -54,7 +54,7 @@ func (w *Worker) process(parent context.Context, job ReviewJob) {
 		return
 	}
 
-	report, err := w.ReviewService.ReviewPR(ctx, app.ReviewPRRequest{
+	result, err := w.ReviewService.ReviewPRWithDetails(ctx, app.ReviewPRRequest{
 		Ref:      job.Ref,
 		Config:   job.Config,
 		MaxFiles: job.MaxFiles,
@@ -63,7 +63,13 @@ func (w *Worker) process(parent context.Context, job ReviewJob) {
 		_ = w.Store.UpdateStatus(context.Background(), job.SessionID, session.StatusFailed, err.Error())
 		return
 	}
-	if err := w.Store.SaveReport(ctx, job.SessionID, report); err != nil {
+	if result.PullRequest.HeadSHA != "" {
+		if err := w.Store.UpdateHeadSHA(ctx, job.SessionID, result.PullRequest.HeadSHA); err != nil {
+			_ = w.Store.UpdateStatus(context.Background(), job.SessionID, session.StatusFailed, err.Error())
+			return
+		}
+	}
+	if err := w.Store.SaveReport(ctx, job.SessionID, result.Report); err != nil {
 		_ = w.Store.UpdateStatus(context.Background(), job.SessionID, session.StatusFailed, err.Error())
 		return
 	}

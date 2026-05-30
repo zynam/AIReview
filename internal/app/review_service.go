@@ -3,17 +3,19 @@ package app
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"strings"
 
+	"aireview/internal/agent"
 	"aireview/internal/config"
 	"aireview/internal/diff"
 	"aireview/internal/github"
-	"aireview/internal/llm"
 	"aireview/internal/review"
 )
 
 type ReviewService struct {
 	GitHub github.Client
-	LLM    llm.Provider
+	Agent  agent.ReviewAgent
 }
 
 type ReviewPRRequest struct {
@@ -22,11 +24,13 @@ type ReviewPRRequest struct {
 	MinSeverity   string
 	MinConfidence float64
 	MaxFiles      int
+	EventSink     agent.EventSink
 }
 
 type ReviewPRResult struct {
 	Report      review.ReviewReport
 	PullRequest review.PullRequest
+	Agent       agent.AnalyzeResult
 }
 
 func (s *ReviewService) ReviewPR(ctx context.Context, req ReviewPRRequest) (review.ReviewReport, error) {
@@ -38,8 +42,8 @@ func (s *ReviewService) ReviewPRWithDetails(ctx context.Context, req ReviewPRReq
 	if s.GitHub == nil {
 		return ReviewPRResult{}, fmt.Errorf("github client is required")
 	}
-	if s.LLM == nil {
-		return ReviewPRResult{}, fmt.Errorf("LLM provider is required")
+	if s.Agent == nil {
+		return ReviewPRResult{}, fmt.Errorf("review agent is required")
 	}
 
 	pr, err := s.GitHub.GetPullRequest(ctx, req.Ref)
@@ -47,7 +51,9 @@ func (s *ReviewService) ReviewPRWithDetails(ctx context.Context, req ReviewPRReq
 		return ReviewPRResult{}, err
 	}
 	classifyFiles(pr.Files)
+	pr, ignoredFiles := ignoreFiles(pr, req.Config.IgnorePaths)
 	pr, skippedFiles := limitFiles(pr, req.MaxFiles)
+	skippedFiles = append(skippedFiles, ignoredFiles...)
 
 	minSeverity, err := minSeverity(req)
 	if err != nil {
@@ -56,22 +62,24 @@ func (s *ReviewService) ReviewPRWithDetails(ctx context.Context, req ReviewPRReq
 	minConfidence := minConfidence(req)
 
 	ruleHints := review.RuleAnalyzer{}.Analyze(pr)
-	aiResponse, err := s.LLM.Review(ctx, llm.ReviewRequest{
+	agentResult, err := s.Agent.Analyze(ctx, agent.AnalyzeRequest{
 		PullRequest:  pr,
 		RuleFindings: ruleHints,
 		Config:       req.Config,
+		EventSink:    req.EventSink,
 	})
 	if err != nil {
 		return ReviewPRResult{PullRequest: pr}, err
 	}
 
-	report := aiResponse.Report
+	report := agentResult.Report
 	report.SkippedFiles = append(report.SkippedFiles, skippedFiles...)
 	report.Findings = review.FilterFindings(report.Findings, minSeverity, minConfidence)
 	review.SortFindings(report.Findings)
 	return ReviewPRResult{
 		Report:      report,
 		PullRequest: pr,
+		Agent:       agentResult,
 	}, nil
 }
 
@@ -94,6 +102,42 @@ func limitFiles(pr review.PullRequest, maxFiles int) (review.PullRequest, []stri
 	}
 	pr.Files = pr.Files[:maxFiles]
 	return pr, skipped
+}
+
+func ignoreFiles(pr review.PullRequest, patterns []string) (review.PullRequest, []string) {
+	if len(patterns) == 0 || len(pr.Files) == 0 {
+		return pr, nil
+	}
+
+	files := make([]review.ChangedFile, 0, len(pr.Files))
+	ignored := make([]string, 0)
+	for _, file := range pr.Files {
+		if pathMatchesAny(file.Path, patterns) {
+			ignored = append(ignored, file.Path)
+			continue
+		}
+		files = append(files, file)
+	}
+	pr.Files = files
+	return pr, ignored
+}
+
+func pathMatchesAny(path string, patterns []string) bool {
+	normalized := strings.ReplaceAll(path, "\\", "/")
+	for _, pattern := range patterns {
+		pattern = strings.TrimSpace(strings.ReplaceAll(pattern, "\\", "/"))
+		if pattern == "" {
+			continue
+		}
+		if ok, _ := filepath.Match(pattern, normalized); ok {
+			return true
+		}
+		trimmed := strings.Trim(pattern, "*")
+		if trimmed != "" && strings.Contains(normalized, trimmed) {
+			return true
+		}
+	}
+	return false
 }
 
 func minSeverity(req ReviewPRRequest) (review.Severity, error) {

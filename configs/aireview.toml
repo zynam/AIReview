@@ -1,9 +1,15 @@
 ﻿language = "zh-CN"
 review_focus = ["correctness", "security", "test risk"]
 
+[agent]
+max_context_tokens = 12000
+max_file_patch_bytes = 20000
+max_files = 50
+timeout_seconds = 180
+
 [llm]
 base_url = "https://api.deepseek.com"
-api_key = "sk-3ed288c73aab41b3b83ddbd015b4379c"
+api_key = ""
 model = "deepseek-v4-pro"
 
 [mysql]

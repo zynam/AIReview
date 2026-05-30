@@ -61,7 +61,11 @@ func (s Service) Detail(ctx context.Context, id string) (ReviewDetail, error) {
 	if err != nil {
 		return ReviewDetail{}, err
 	}
-	return ReviewDetail{ReviewSession: item, Findings: findings}, nil
+	calls, err := s.Store.ListLLMCalls(ctx, id)
+	if err != nil {
+		return ReviewDetail{}, err
+	}
+	return ReviewDetail{ReviewSession: item, Findings: findings, LLMCalls: calls}, nil
 }
 
 func NewID() string {

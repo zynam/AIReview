@@ -19,12 +19,20 @@ type Config struct {
 	HighRiskPaths          []string      `toml:"high_risk_paths"`
 	ReviewFocus            []string      `toml:"review_focus"`
 	Publish                PublishConfig `toml:"publish"`
+	Agent                  AgentConfig   `toml:"agent"`
 	LLM                    LLMConfig     `toml:"llm"`
 	MySQL                  MySQLConfig   `toml:"mysql"`
 }
 
 type PublishConfig struct {
 	Enabled bool `toml:"enabled"`
+}
+
+type AgentConfig struct {
+	MaxContextTokens  int `toml:"max_context_tokens"`
+	MaxFilePatchBytes int `toml:"max_file_patch_bytes"`
+	MaxFiles          int `toml:"max_files"`
+	TimeoutSeconds    int `toml:"timeout_seconds"`
 }
 
 type LLMConfig struct {
@@ -40,6 +48,12 @@ type MySQLConfig struct {
 func DefaultConfig() Config {
 	return Config{
 		Language: "zh-CN",
+		Agent: AgentConfig{
+			MaxContextTokens:  12000,
+			MaxFilePatchBytes: 20000,
+			MaxFiles:          50,
+			TimeoutSeconds:    180,
+		},
 		LLM: LLMConfig{
 			BaseURL: "https://api.deepseek.com",
 			Model:   "deepseek-chat",
@@ -74,6 +88,9 @@ func applyEnvFallbacks(cfg *Config) {
 	if baseURL := strings.TrimSpace(os.Getenv("LLM_BASE_URL")); baseURL != "" {
 		cfg.LLM.BaseURL = baseURL
 	}
+	if apiKey := strings.TrimSpace(os.Getenv("LLM_API_KEY")); apiKey != "" && strings.TrimSpace(cfg.LLM.APIKey) == "" {
+		cfg.LLM.APIKey = apiKey
+	}
 	if model := strings.TrimSpace(os.Getenv("LLM_MODEL")); model != "" {
 		cfg.LLM.Model = model
 	}
@@ -95,5 +112,18 @@ func normalize(cfg *Config) {
 	}
 	if cfg.LLM.Model == "" {
 		cfg.LLM.Model = DefaultConfig().LLM.Model
+	}
+	defaults := DefaultConfig().Agent
+	if cfg.Agent.MaxContextTokens <= 0 {
+		cfg.Agent.MaxContextTokens = defaults.MaxContextTokens
+	}
+	if cfg.Agent.MaxFilePatchBytes <= 0 {
+		cfg.Agent.MaxFilePatchBytes = defaults.MaxFilePatchBytes
+	}
+	if cfg.Agent.MaxFiles <= 0 {
+		cfg.Agent.MaxFiles = defaults.MaxFiles
+	}
+	if cfg.Agent.TimeoutSeconds <= 0 {
+		cfg.Agent.TimeoutSeconds = defaults.TimeoutSeconds
 	}
 }

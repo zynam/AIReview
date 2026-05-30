@@ -97,6 +97,24 @@ func (h ReviewHandler) Contexts(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": chunks})
 }
 
+func (h ReviewHandler) Events(c *gin.Context) {
+	events, err := h.Store.ListEvents(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, err)
+		return
+	}
+	if strings.Contains(c.GetHeader("Accept"), "text/event-stream") || c.Query("stream") == "1" {
+		c.Header("Cache-Control", "no-cache")
+		c.Header("Connection", "keep-alive")
+		c.Header("Content-Type", "text/event-stream")
+		for _, event := range events {
+			c.SSEvent(event.Type, event)
+		}
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": events})
+}
+
 func mergeConfig(base config.Config, req createReviewConfig) config.Config {
 	cfg := base
 	if strings.TrimSpace(os.Getenv("LLM_MODEL")) == "" && strings.TrimSpace(req.Model) != "" {

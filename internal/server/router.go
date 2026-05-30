@@ -43,6 +43,7 @@ func NewRouter(deps Dependencies) *gin.Engine {
 		api.POST("/reviews", reviewHandler.Create)
 		api.GET("/reviews/:id", reviewHandler.Get)
 		api.GET("/reviews/:id/contexts", reviewHandler.Contexts)
+		api.GET("/reviews/:id/events", reviewHandler.Events)
 		api.GET("/reviews/:id/report.md", reportHandler.Markdown)
 		api.PATCH("/findings/:id", findingHandler.Update)
 	}

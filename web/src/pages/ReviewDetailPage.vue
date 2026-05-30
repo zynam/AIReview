@@ -30,6 +30,15 @@
               <el-descriptions-item label="Updated">
                 {{ formatDate(review.current.updated_at) }}
               </el-descriptions-item>
+              <el-descriptions-item label="Model">
+                {{ latestLLMCall?.model || "-" }}
+              </el-descriptions-item>
+              <el-descriptions-item label="Prompt Tokens">
+                {{ latestLLMCall?.prompt_tokens_approx ?? "-" }}
+              </el-descriptions-item>
+              <el-descriptions-item label="Duration">
+                {{ formatDuration(latestLLMCall?.duration_millis) }}
+              </el-descriptions-item>
             </el-descriptions>
 
             <div class="overview-grid">
@@ -58,6 +67,42 @@
                 />
                 <ul v-else class="plain-list mono">
                   <li v-for="file in review.current.skipped_files" :key="file">{{ file }}</li>
+                </ul>
+              </section>
+              <section>
+                <h3>Agent Metrics</h3>
+                <el-empty v-if="!latestLLMCall" description="No metrics yet" />
+                <dl v-else class="metrics-list">
+                  <div>
+                    <dt>Context Chunks</dt>
+                    <dd>{{ latestLLMCall.context_chunks }}</dd>
+                  </div>
+                  <div>
+                    <dt>Kept Chunks</dt>
+                    <dd>{{ latestLLMCall.kept_chunks }}</dd>
+                  </div>
+                  <div>
+                    <dt>Rule Findings</dt>
+                    <dd>{{ latestLLMCall.rule_finding_count }}</dd>
+                  </div>
+                  <div>
+                    <dt>Skipped Files</dt>
+                    <dd>{{ latestLLMCall.skipped_files }}</dd>
+                  </div>
+                  <div>
+                    <dt>Request Bytes</dt>
+                    <dd>{{ latestLLMCall.request_bytes }}</dd>
+                  </div>
+                </dl>
+              </section>
+              <section>
+                <h3>Agent Events</h3>
+                <el-empty v-if="events.length === 0" description="No events yet" />
+                <ul v-else class="plain-list event-list">
+                  <li v-for="event in recentEvents" :key="event.id || event.created_at">
+                    <span class="mono">{{ event.type }}</span>
+                    <span>{{ event.message }}</span>
+                  </li>
                 </ul>
               </section>
             </div>
@@ -101,7 +146,8 @@ import { ElMessage } from "element-plus";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
-import type { FindingFeedbackStatus } from "@/api/types";
+import { getEvents } from "@/api/reviews";
+import type { FindingFeedbackStatus, ReviewEvent } from "@/api/types";
 import ContextPanel from "@/components/ContextPanel.vue";
 import FindingsTable from "@/components/FindingsTable.vue";
 import ReportPreview from "@/components/ReportPreview.vue";
@@ -114,11 +160,26 @@ const router = useRouter();
 const review = useReviewStore();
 const activeTab = ref("overview");
 const reviewId = computed(() => String(route.params.id));
+const events = ref<ReviewEvent[]>([]);
+const latestLLMCall = computed(() => {
+  const calls = review.current?.llm_calls ?? [];
+  return calls.length > 0 ? calls[calls.length - 1] : null;
+});
+const recentEvents = computed(() => events.value.slice(-8).reverse());
 
 async function reload() {
   await review.fetchReview(reviewId.value);
+  await loadEvents();
   if (!review.isTerminal) {
     review.startPolling(reviewId.value);
+  }
+}
+
+async function loadEvents() {
+  try {
+    events.value = await getEvents(reviewId.value);
+  } catch {
+    events.value = [];
   }
 }
 
@@ -137,6 +198,11 @@ function formatDate(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatDuration(value: number | null | undefined) {
+  if (typeof value !== "number") return "-";
+  return `${value} ms`;
 }
 
 onMounted(reload);

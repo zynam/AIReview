@@ -66,6 +66,22 @@ var migrations = []string{
   index idx_session_created (session_id, created_at),
   constraint fk_review_events_session foreign key (session_id) references review_sessions(id) on delete cascade
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci`,
+	`create table if not exists llm_calls (
+  id varchar(36) primary key,
+  session_id varchar(36) not null,
+  model varchar(128) not null default '',
+  file_count int not null default 0,
+  rule_finding_count int not null default 0,
+  context_chunks int not null default 0,
+  kept_chunks int not null default 0,
+  skipped_files int not null default 0,
+  prompt_tokens_approx int not null default 0,
+  request_bytes int not null default 0,
+  duration_millis bigint not null default 0,
+  created_at datetime(3) not null,
+  index idx_session_created (session_id, created_at),
+  constraint fk_llm_calls_session foreign key (session_id) references review_sessions(id) on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci`,
 }
 
 func Migrate(ctx context.Context, db *gorm.DB) error {

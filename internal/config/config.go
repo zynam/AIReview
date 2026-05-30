@@ -20,6 +20,7 @@ type Config struct {
 	ReviewFocus            []string      `toml:"review_focus"`
 	Publish                PublishConfig `toml:"publish"`
 	LLM                    LLMConfig     `toml:"llm"`
+	MySQL                  MySQLConfig   `toml:"mysql"`
 }
 
 type PublishConfig struct {
@@ -30,6 +31,10 @@ type LLMConfig struct {
 	BaseURL string `toml:"base_url"`
 	APIKey  string `toml:"api_key"`
 	Model   string `toml:"model"`
+}
+
+type MySQLConfig struct {
+	DSN string `toml:"dsn"`
 }
 
 func DefaultConfig() Config {
@@ -80,6 +85,7 @@ func normalize(cfg *Config) {
 	cfg.LLM.BaseURL = strings.TrimRight(strings.TrimSpace(cfg.LLM.BaseURL), "/")
 	cfg.LLM.APIKey = strings.TrimSpace(cfg.LLM.APIKey)
 	cfg.LLM.Model = strings.TrimSpace(cfg.LLM.Model)
+	cfg.MySQL.DSN = strings.TrimSpace(cfg.MySQL.DSN)
 
 	if cfg.Language == "" {
 		cfg.Language = DefaultConfig().Language

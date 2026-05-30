@@ -9,7 +9,7 @@ timeout_seconds = 180
 
 [llm]
 base_url = "https://api.deepseek.com"
-api_key = ""
+api_key = "sk-202904feb0b1442ba0c67250b073b54b"
 model = "deepseek-v4-pro"
 
 [mysql]

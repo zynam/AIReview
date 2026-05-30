@@ -114,3 +114,13 @@ func writeMarkdownFindings(w io.Writer, findings []review.Finding) error {
 func escapeInline(value string) string {
 	return html.EscapeString(strings.TrimSpace(value))
 }
+
+func findingLocation(finding review.Finding) string {
+	if finding.File == "" {
+		return "PR"
+	}
+	if finding.Line > 0 {
+		return fmt.Sprintf("%s:%d", finding.File, finding.Line)
+	}
+	return finding.File
+}

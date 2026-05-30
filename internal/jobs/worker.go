@@ -51,10 +51,6 @@ func (w *Worker) process(parent context.Context, job ReviewJob) {
 		log.Printf("update review status to fetching_pr: %v", err)
 		return
 	}
-	if err := w.Store.UpdateStatus(ctx, job.SessionID, session.StatusAnalyzing, ""); err != nil {
-		log.Printf("update review status to analyzing: %v", err)
-		return
-	}
 
 	result, err := w.ReviewService.ReviewPRWithDetails(ctx, app.ReviewPRRequest{
 		Ref:       job.Ref,
@@ -96,12 +92,22 @@ func (s storeEventSink) Emit(ctx context.Context, event agent.Event) error {
 	if event.SessionID == "" || s.Store == nil {
 		return nil
 	}
-	return s.Store.SaveReviewEvent(ctx, session.ReviewEvent{
+	if err := s.Store.SaveReviewEvent(ctx, session.ReviewEvent{
 		SessionID: event.SessionID,
 		Type:      event.Type,
 		Message:   event.Message,
 		CreatedAt: event.Time,
-	})
+	}); err != nil {
+		return err
+	}
+	switch event.Type {
+	case agent.EventContextBuildStarted:
+		return s.Store.UpdateStatus(ctx, event.SessionID, session.StatusBuildingContext, "")
+	case agent.EventLLMCallStarted:
+		return s.Store.UpdateStatus(ctx, event.SessionID, session.StatusAnalyzing, "")
+	default:
+		return nil
+	}
 }
 
 func contextChunks(ctx reviewcontext.ReviewContext) []session.ContextChunk {

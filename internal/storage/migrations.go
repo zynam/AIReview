@@ -76,6 +76,7 @@ var migrations = []string{
   kept_chunks int not null default 0,
   skipped_files int not null default 0,
   prompt_tokens_approx int not null default 0,
+  request_bytes int not null default 0,
   duration_millis bigint not null default 0,
   created_at datetime(3) not null,
   index idx_session_created (session_id, created_at),

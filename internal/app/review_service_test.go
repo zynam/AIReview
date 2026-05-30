@@ -133,6 +133,38 @@ func TestReviewServiceMaxFiles(t *testing.T) {
 	}
 }
 
+func TestReviewServiceIgnorePaths(t *testing.T) {
+	reviewAgent := &fakeReviewAgent{report: review.ReviewReport{Summary: "ok"}}
+	service := ReviewService{
+		GitHub: fakeGitHubClient{pr: review.PullRequest{
+			Owner:  "openai",
+			Repo:   "openai-go",
+			Number: 123,
+			Files: []review.ChangedFile{
+				{Path: "internal/one.go", Additions: 1},
+				{Path: "web/dist/app.js", Additions: 1},
+			},
+		}},
+		Agent: reviewAgent,
+	}
+	cfg := config.DefaultConfig()
+	cfg.IgnorePaths = []string{"web/dist/*"}
+
+	report, err := service.ReviewPR(context.Background(), ReviewPRRequest{
+		Ref:    github.PRRef{Owner: "openai", Repo: "openai-go", Number: 123},
+		Config: cfg,
+	})
+	if err != nil {
+		t.Fatalf("ReviewPR() error = %v", err)
+	}
+	if len(reviewAgent.lastRequest.PullRequest.Files) != 1 || reviewAgent.lastRequest.PullRequest.Files[0].Path != "internal/one.go" {
+		t.Fatalf("Agent files = %#v, want only internal/one.go", reviewAgent.lastRequest.PullRequest.Files)
+	}
+	if len(report.SkippedFiles) != 1 || report.SkippedFiles[0] != "web/dist/app.js" {
+		t.Fatalf("SkippedFiles = %#v, want ignored file", report.SkippedFiles)
+	}
+}
+
 func TestReviewServiceInvalidSeverity(t *testing.T) {
 	service := ReviewService{
 		GitHub: fakeGitHubClient{pr: review.PullRequest{Files: []review.ChangedFile{{Path: "internal/one.go"}}}},

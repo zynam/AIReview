@@ -54,6 +54,7 @@ func (n ChatModelNode) Run(ctx context.Context, state State) (State, error) {
 	if err := json.NewEncoder(&body).Encode(requestBody); err != nil {
 		return State{}, fmt.Errorf("encode LLM request: %w", err)
 	}
+	state.Metrics.RequestBytes = body.Len()
 	endpoint, err := chatCompletionsEndpoint(cfg.LLM.BaseURL)
 	if err != nil {
 		return State{}, err

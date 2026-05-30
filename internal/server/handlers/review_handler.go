@@ -103,6 +103,15 @@ func (h ReviewHandler) Events(c *gin.Context) {
 		writeError(c, http.StatusInternalServerError, err)
 		return
 	}
+	if strings.Contains(c.GetHeader("Accept"), "text/event-stream") || c.Query("stream") == "1" {
+		c.Header("Cache-Control", "no-cache")
+		c.Header("Connection", "keep-alive")
+		c.Header("Content-Type", "text/event-stream")
+		for _, event := range events {
+			c.SSEvent(event.Type, event)
+		}
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"items": events})
 }
 

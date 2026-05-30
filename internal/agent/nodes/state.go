@@ -13,6 +13,7 @@ type Metrics struct {
 	KeptChunks         int
 	SkippedFiles       int
 	PromptTokensApprox int
+	RequestBytes       int
 	DurationMillis     int64
 }
 

@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	"aireview/internal/agent"
 	"aireview/internal/config"
@@ -49,7 +51,9 @@ func (s *ReviewService) ReviewPRWithDetails(ctx context.Context, req ReviewPRReq
 		return ReviewPRResult{}, err
 	}
 	classifyFiles(pr.Files)
+	pr, ignoredFiles := ignoreFiles(pr, req.Config.IgnorePaths)
 	pr, skippedFiles := limitFiles(pr, req.MaxFiles)
+	skippedFiles = append(skippedFiles, ignoredFiles...)
 
 	minSeverity, err := minSeverity(req)
 	if err != nil {
@@ -98,6 +102,42 @@ func limitFiles(pr review.PullRequest, maxFiles int) (review.PullRequest, []stri
 	}
 	pr.Files = pr.Files[:maxFiles]
 	return pr, skipped
+}
+
+func ignoreFiles(pr review.PullRequest, patterns []string) (review.PullRequest, []string) {
+	if len(patterns) == 0 || len(pr.Files) == 0 {
+		return pr, nil
+	}
+
+	files := make([]review.ChangedFile, 0, len(pr.Files))
+	ignored := make([]string, 0)
+	for _, file := range pr.Files {
+		if pathMatchesAny(file.Path, patterns) {
+			ignored = append(ignored, file.Path)
+			continue
+		}
+		files = append(files, file)
+	}
+	pr.Files = files
+	return pr, ignored
+}
+
+func pathMatchesAny(path string, patterns []string) bool {
+	normalized := strings.ReplaceAll(path, "\\", "/")
+	for _, pattern := range patterns {
+		pattern = strings.TrimSpace(strings.ReplaceAll(pattern, "\\", "/"))
+		if pattern == "" {
+			continue
+		}
+		if ok, _ := filepath.Match(pattern, normalized); ok {
+			return true
+		}
+		trimmed := strings.Trim(pattern, "*")
+		if trimmed != "" && strings.Contains(normalized, trimmed) {
+			return true
+		}
+	}
+	return false
 }
 
 func minSeverity(req ReviewPRRequest) (review.Severity, error) {

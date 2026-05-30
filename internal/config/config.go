@@ -88,6 +88,9 @@ func applyEnvFallbacks(cfg *Config) {
 	if baseURL := strings.TrimSpace(os.Getenv("LLM_BASE_URL")); baseURL != "" {
 		cfg.LLM.BaseURL = baseURL
 	}
+	if apiKey := strings.TrimSpace(os.Getenv("LLM_API_KEY")); apiKey != "" && strings.TrimSpace(cfg.LLM.APIKey) == "" {
+		cfg.LLM.APIKey = apiKey
+	}
 	if model := strings.TrimSpace(os.Getenv("LLM_MODEL")); model != "" {
 		cfg.LLM.Model = model
 	}

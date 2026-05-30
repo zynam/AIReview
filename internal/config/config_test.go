@@ -107,7 +107,27 @@ dsn = "root:123456@tcp(127.0.0.1:3306)/aireview?parseTime=true"
 	}
 }
 
-func TestLoadDoesNotReadAPIKeyFromEnv(t *testing.T) {
+func TestLoadReadsAPIKeyFromEnvWhenUnset(t *testing.T) {
+	t.Setenv("LLM_API_KEY", "env-key")
+
+	path := filepath.Join(t.TempDir(), "aireview.toml")
+	if err := os.WriteFile(path, []byte(`
+[llm]
+api_key = ""
+`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	got, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got.LLM.APIKey != "env-key" {
+		t.Fatalf("APIKey = %q, want env value", got.LLM.APIKey)
+	}
+}
+
+func TestLoadTOMLAPIKeyOverridesEnv(t *testing.T) {
 	t.Setenv("LLM_API_KEY", "env-key")
 
 	path := filepath.Join(t.TempDir(), "aireview.toml")

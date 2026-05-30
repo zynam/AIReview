@@ -79,6 +79,7 @@ export interface LLMCall {
   kept_chunks: number;
   skipped_files: number;
   prompt_tokens_approx: number;
+  request_bytes: number;
   duration_millis: number;
   created_at: string;
 }

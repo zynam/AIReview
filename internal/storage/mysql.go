@@ -98,6 +98,7 @@ type llmCallRecord struct {
 	KeptChunks         int       `gorm:"not null;default:0"`
 	SkippedFiles       int       `gorm:"not null;default:0"`
 	PromptTokensApprox int       `gorm:"not null;default:0"`
+	RequestBytes       int       `gorm:"not null;default:0"`
 	DurationMillis     int64     `gorm:"not null;default:0"`
 	CreatedAt          time.Time `gorm:"not null;index:idx_session_created,priority:2"`
 }
@@ -505,6 +506,7 @@ func llmCallToRecord(sessionID string, metrics agent.Metrics, createdAt time.Tim
 		KeptChunks:         metrics.KeptChunks,
 		SkippedFiles:       metrics.SkippedFiles,
 		PromptTokensApprox: metrics.PromptTokensApprox,
+		RequestBytes:       metrics.RequestBytes,
 		DurationMillis:     metrics.DurationMillis,
 		CreatedAt:          createdAt,
 	}
@@ -521,6 +523,7 @@ func llmCallRecordToSession(record llmCallRecord) session.LLMCall {
 		KeptChunks:         record.KeptChunks,
 		SkippedFiles:       record.SkippedFiles,
 		PromptTokensApprox: record.PromptTokensApprox,
+		RequestBytes:       record.RequestBytes,
 		DurationMillis:     record.DurationMillis,
 		CreatedAt:          record.CreatedAt,
 	}

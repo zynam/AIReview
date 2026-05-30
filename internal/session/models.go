@@ -72,6 +72,7 @@ type LLMCall struct {
 	KeptChunks         int       `json:"kept_chunks"`
 	SkippedFiles       int       `json:"skipped_files"`
 	PromptTokensApprox int       `json:"prompt_tokens_approx"`
+	RequestBytes       int       `json:"request_bytes"`
 	DurationMillis     int64     `json:"duration_millis"`
 	CreatedAt          time.Time `json:"created_at"`
 }

@@ -24,46 +24,55 @@ type ReviewPRRequest struct {
 	MaxFiles      int
 }
 
+type ReviewPRResult struct {
+	Report      review.ReviewReport
+	PullRequest review.PullRequest
+}
+
 func (s *ReviewService) ReviewPR(ctx context.Context, req ReviewPRRequest) (review.ReviewReport, error) {
+	result, err := s.ReviewPRWithDetails(ctx, req)
+	return result.Report, err
+}
+
+func (s *ReviewService) ReviewPRWithDetails(ctx context.Context, req ReviewPRRequest) (ReviewPRResult, error) {
 	if s.GitHub == nil {
-		return review.ReviewReport{}, fmt.Errorf("github client is required")
+		return ReviewPRResult{}, fmt.Errorf("github client is required")
 	}
 	if s.LLM == nil {
-		return review.ReviewReport{}, fmt.Errorf("LLM provider is required")
+		return ReviewPRResult{}, fmt.Errorf("LLM provider is required")
 	}
 
 	pr, err := s.GitHub.GetPullRequest(ctx, req.Ref)
 	if err != nil {
-		return review.ReviewReport{}, err
+		return ReviewPRResult{}, err
 	}
 	classifyFiles(pr.Files)
 	pr, skippedFiles := limitFiles(pr, req.MaxFiles)
 
-	ruleFindings := review.RuleAnalyzer{}.Analyze(pr)
-	aiResponse, llmErr := s.LLM.Review(ctx, llm.ReviewRequest{
-		PullRequest:  pr,
-		RuleFindings: ruleFindings,
-		Config:       req.Config,
-	})
-
-	report := review.MergeReports(aiResponse.Report, ruleFindings)
-	if report.Summary == "" {
-		report.Summary = fallbackSummary(req.Ref, llmErr)
-	}
-	report.SkippedFiles = append(report.SkippedFiles, skippedFiles...)
-
 	minSeverity, err := minSeverity(req)
 	if err != nil {
-		return report, err
+		return ReviewPRResult{PullRequest: pr}, err
 	}
 	minConfidence := minConfidence(req)
+
+	ruleHints := review.RuleAnalyzer{}.Analyze(pr)
+	aiResponse, err := s.LLM.Review(ctx, llm.ReviewRequest{
+		PullRequest:  pr,
+		RuleFindings: ruleHints,
+		Config:       req.Config,
+	})
+	if err != nil {
+		return ReviewPRResult{PullRequest: pr}, err
+	}
+
+	report := aiResponse.Report
+	report.SkippedFiles = append(report.SkippedFiles, skippedFiles...)
 	report.Findings = review.FilterFindings(report.Findings, minSeverity, minConfidence)
 	review.SortFindings(report.Findings)
-
-	if llmErr != nil {
-		return report, llmErr
-	}
-	return report, nil
+	return ReviewPRResult{
+		Report:      report,
+		PullRequest: pr,
+	}, nil
 }
 
 func classifyFiles(files []review.ChangedFile) {
@@ -104,11 +113,4 @@ func minConfidence(req ReviewPRRequest) float64 {
 		return req.MinConfidence
 	}
 	return req.Config.MinConfidenceToPublish
-}
-
-func fallbackSummary(ref github.PRRef, llmErr error) string {
-	if llmErr != nil {
-		return fmt.Sprintf("AI review failed for %s/%s#%d; showing rule-based findings only.", ref.Owner, ref.Repo, ref.Number)
-	}
-	return fmt.Sprintf("Review completed for %s/%s#%d.", ref.Owner, ref.Repo, ref.Number)
 }

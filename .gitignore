@@ -1,4 +1,11 @@
 docs
 .idea
 .gocache/
+web/node_modules/
+web/dist/
+web/.vite/
+web/.npm-cache/
+web/*.tsbuildinfo
+web/npm-debug.log*
 *_test.go
+*.go.*

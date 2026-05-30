@@ -20,19 +20,21 @@ import (
 const defaultUserAgent = "aireview"
 
 type OpenAICompatibleProvider struct {
-	cfg        config.Config
-	httpClient *http.Client
-	userAgent  string
+	cfg         config.Config
+	httpClient  *http.Client
+	userAgent   string
+	diagnostics io.Writer
 }
 
 type Option func(*OpenAICompatibleProvider)
 
 func NewOpenAICompatibleProvider(cfg config.Config, opts ...Option) *OpenAICompatibleProvider {
 	p := &OpenAICompatibleProvider{
-		cfg:       cfg,
-		userAgent: defaultUserAgent,
+		cfg:         cfg,
+		userAgent:   defaultUserAgent,
+		diagnostics: os.Stderr,
 		httpClient: &http.Client{
-			Timeout: 60 * time.Second,
+			Timeout: 180 * time.Second,
 		},
 	}
 	for _, opt := range opts {
@@ -57,6 +59,14 @@ func WithUserAgent(userAgent string) Option {
 	}
 }
 
+func WithDiagnosticsWriter(writer io.Writer) Option {
+	return func(p *OpenAICompatibleProvider) {
+		if writer != nil {
+			p.diagnostics = writer
+		}
+	}
+}
+
 func (p *OpenAICompatibleProvider) Review(ctx context.Context, req ReviewRequest) (ReviewResponse, error) {
 	cfg := req.Config
 	if cfg.LLM.BaseURL == "" && p.cfg.LLM.BaseURL != "" {
@@ -67,9 +77,9 @@ func (p *OpenAICompatibleProvider) Review(ctx context.Context, req ReviewRequest
 	}
 	req.Config = cfg
 
-	apiKey := strings.TrimSpace(os.Getenv(cfg.LLM.APIKeyEnv))
+	apiKey := resolveAPIKey(cfg)
 	if apiKey == "" {
-		return ReviewResponse{}, fmt.Errorf("LLM API key is required: set %s", cfg.LLM.APIKeyEnv)
+		return ReviewResponse{}, errors.New("LLM API key is required: set llm.api_key in the TOML config")
 	}
 
 	userPrompt, err := buildPrompt(req)
@@ -89,6 +99,7 @@ func (p *OpenAICompatibleProvider) Review(ctx context.Context, req ReviewRequest
 	if err := json.NewEncoder(&responseBody).Encode(requestBody); err != nil {
 		return ReviewResponse{}, fmt.Errorf("encode LLM request: %w", err)
 	}
+	p.logRequestMetrics(cfg.LLM.Model, req, userPrompt, responseBody.Len())
 
 	endpoint, err := chatCompletionsEndpoint(cfg.LLM.BaseURL)
 	if err != nil {
@@ -129,6 +140,56 @@ func (p *OpenAICompatibleProvider) Review(ctx context.Context, req ReviewRequest
 	return ReviewResponse{Report: report}, nil
 }
 
+func (p *OpenAICompatibleProvider) logRequestMetrics(model string, req ReviewRequest, userPrompt string, requestBytes int) {
+	if p.diagnostics == nil {
+		return
+	}
+
+	metrics := llmRequestMetrics(req, userPrompt, requestBytes)
+	fmt.Fprintf(
+		p.diagnostics,
+		"LLM request metrics: model=%s files=%d commits=%d rule_findings=%d changed_lines=%d patch_bytes=%d user_prompt_bytes=%d request_bytes=%d approx_prompt_tokens=%d\n",
+		model,
+		metrics.FileCount,
+		metrics.CommitCount,
+		metrics.RuleFindingCount,
+		metrics.ChangedLines,
+		metrics.PatchBytes,
+		metrics.UserPromptBytes,
+		metrics.RequestBytes,
+		metrics.ApproxPromptTokens,
+	)
+}
+
+type requestMetrics struct {
+	FileCount          int
+	CommitCount        int
+	RuleFindingCount   int
+	ChangedLines       int
+	PatchBytes         int
+	UserPromptBytes    int
+	RequestBytes       int
+	ApproxPromptTokens int
+}
+
+func llmRequestMetrics(req ReviewRequest, userPrompt string, requestBytes int) requestMetrics {
+	metrics := requestMetrics{
+		FileCount:        len(req.PullRequest.Files),
+		CommitCount:      len(req.PullRequest.Commits),
+		RuleFindingCount: len(req.RuleFindings),
+		UserPromptBytes:  len([]byte(userPrompt)),
+		RequestBytes:     requestBytes,
+	}
+	for _, file := range req.PullRequest.Files {
+		metrics.ChangedLines += file.Additions + file.Deletions
+		metrics.PatchBytes += len([]byte(file.Patch))
+	}
+
+	promptBytes := len([]byte(systemPrompt)) + metrics.UserPromptBytes
+	metrics.ApproxPromptTokens = (promptBytes + 3) / 4
+	return metrics
+}
+
 func validateLLMConfig(cfg config.Config) error {
 	if strings.TrimSpace(cfg.LLM.BaseURL) == "" {
 		return errors.New("LLM base_url is required")
@@ -136,10 +197,14 @@ func validateLLMConfig(cfg config.Config) error {
 	if strings.TrimSpace(cfg.LLM.Model) == "" {
 		return errors.New("LLM model is required")
 	}
-	if strings.TrimSpace(cfg.LLM.APIKeyEnv) == "" {
-		return errors.New("LLM api_key_env is required")
-	}
 	return nil
+}
+
+func resolveAPIKey(cfg config.Config) string {
+	if apiKey := strings.TrimSpace(cfg.LLM.APIKey); apiKey != "" {
+		return apiKey
+	}
+	return ""
 }
 
 func chatCompletionsEndpoint(baseURL string) (string, error) {

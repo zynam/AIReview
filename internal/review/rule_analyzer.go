@@ -76,9 +76,9 @@ func largeFileFinding(file ChangedFile, changeCount int) Finding {
 		Confidence: 0.8,
 		Category:   CategoryMaintainability,
 		File:       file.Path,
-		Title:      "Large file change",
-		Evidence:   fmt.Sprintf("%s changes %d lines (+%d -%d)", file.Path, changeCount, file.Additions, file.Deletions),
-		Suggestion: "Review this file in smaller logical sections and verify tests cover the changed behavior.",
+		Title:      "单文件变更较大",
+		Evidence:   fmt.Sprintf("%s 变更 %d 行（+%d -%d）", file.Path, changeCount, file.Additions, file.Deletions),
+		Suggestion: "按逻辑分块审查该文件，并确认测试覆盖了变更行为。",
 	}
 }
 
@@ -87,9 +87,9 @@ func largePRFinding(totalChanges int) Finding {
 		Severity:        SeverityMedium,
 		Confidence:      0.75,
 		Category:        CategoryMaintainability,
-		Title:           "Large pull request",
-		Evidence:        fmt.Sprintf("This PR changes %d lines across all files", totalChanges),
-		Suggestion:      "Consider splitting unrelated changes or increasing reviewer attention on high-risk files.",
+		Title:           "PR 变更规模较大",
+		Evidence:        fmt.Sprintf("该 PR 所有文件合计变更 %d 行", totalChanges),
+		Suggestion:      "考虑拆分无关变更，或对高风险文件投入更多审查关注。",
 		NeedsHumanCheck: true,
 	}
 }
@@ -100,9 +100,9 @@ func configFinding(file ChangedFile) Finding {
 		Confidence:      0.75,
 		Category:        CategoryMaintainability,
 		File:            file.Path,
-		Title:           "Configuration file changed",
-		Evidence:        fmt.Sprintf("%s is classified as a configuration file", file.Path),
-		Suggestion:      "Verify the configuration change against the target environment and deployment defaults.",
+		Title:           "配置文件发生变更",
+		Evidence:        fmt.Sprintf("%s 被识别为配置文件", file.Path),
+		Suggestion:      "确认该配置变更与目标环境和部署默认值兼容。",
 		NeedsHumanCheck: true,
 	}
 }
@@ -113,9 +113,9 @@ func dependencyFinding(file ChangedFile) Finding {
 		Confidence:      0.8,
 		Category:        CategoryCompatibility,
 		File:            file.Path,
-		Title:           "Dependency file changed",
-		Evidence:        fmt.Sprintf("%s is classified as a dependency file", file.Path),
-		Suggestion:      "Check lockfile consistency, compatibility impact, and whether dependency changes are intentional.",
+		Title:           "依赖文件发生变更",
+		Evidence:        fmt.Sprintf("%s 被识别为依赖文件", file.Path),
+		Suggestion:      "检查锁文件一致性、兼容性影响，并确认依赖变更是否符合预期。",
 		NeedsHumanCheck: true,
 	}
 }
@@ -125,9 +125,9 @@ func missingTestsFinding() Finding {
 		Severity:        SeverityMedium,
 		Confidence:      0.7,
 		Category:        CategoryTestRisk,
-		Title:           "Source changes without test changes",
-		Evidence:        "At least one source file changed, but no test file changes were detected.",
-		Suggestion:      "Add or update tests for the changed behavior, or document why existing tests are sufficient.",
+		Title:           "源码变更缺少对应测试变更",
+		Evidence:        "检测到至少一个源码文件发生变更，但没有检测到测试文件变更。",
+		Suggestion:      "为变更行为新增或更新测试，或说明现有测试为何已经足够。",
 		NeedsHumanCheck: true,
 	}
 }
@@ -146,11 +146,11 @@ func scanAddedLines(file ChangedFile, classification diff.FileClassification, pa
 			}
 		case "Python":
 			if isBroadPythonException(line.Content) && !diff.HasAddedLineNear(patch.AddedLines, line.Line, 3, handlesException) {
-				findings = append(findings, broadExceptionFinding(file, line.Line, "Python broad exception handler"))
+				findings = append(findings, broadExceptionFinding(file, line.Line, "Python 宽泛异常处理可能缺少处理逻辑"))
 			}
 		case "Java", "TypeScript", "JavaScript":
 			if isCatchLine(line.Content) && !diff.HasAddedLineNear(patch.AddedLines, line.Line, 3, handlesException) {
-				findings = append(findings, broadExceptionFinding(file, line.Line, "Empty or unhandled catch block"))
+				findings = append(findings, broadExceptionFinding(file, line.Line, "catch 块可能缺少处理逻辑"))
 			}
 		}
 	}
@@ -174,9 +174,9 @@ func sensitiveKeywordFinding(file ChangedFile, line int, keyword string) Finding
 		Category:        CategorySecurity,
 		File:            file.Path,
 		Line:            line,
-		Title:           "Sensitive keyword added",
-		Evidence:        fmt.Sprintf("Added line contains sensitive keyword %q", keyword),
-		Suggestion:      "Verify this is not a hard-coded secret and use environment or secret-management configuration when needed.",
+		Title:           "新增内容包含敏感关键词",
+		Evidence:        fmt.Sprintf("新增行包含敏感关键词 %q", keyword),
+		Suggestion:      "确认这不是硬编码密钥；如需配置敏感值，应使用环境变量或密钥管理方案。",
 		NeedsHumanCheck: true,
 	}
 }
@@ -203,9 +203,9 @@ func goErrorHandlingFinding(file ChangedFile, line int) Finding {
 		Category:        CategoryCorrectness,
 		File:            file.Path,
 		Line:            line,
-		Title:           "Potentially incomplete error handling",
-		Evidence:        "Added Go line mentions err without nearby return, logging, panic, or control-flow handling.",
-		Suggestion:      "Verify the error is handled or intentionally ignored.",
+		Title:           "错误处理可能不完整",
+		Evidence:        "新增 Go 代码提到 err，但附近没有 return、日志、panic 或控制流处理。",
+		Suggestion:      "确认该错误已被处理，或明确说明为什么可以忽略。",
 		NeedsHumanCheck: true,
 	}
 }
@@ -239,8 +239,8 @@ func broadExceptionFinding(file ChangedFile, line int, title string) Finding {
 		File:            file.Path,
 		Line:            line,
 		Title:           title,
-		Evidence:        "Added exception handling does not include nearby logging, rethrow, return, or equivalent handling.",
-		Suggestion:      "Handle the exception explicitly, log useful context, or rethrow when the caller should decide.",
+		Evidence:        "新增异常处理附近没有日志、重新抛出、return 或等价处理逻辑。",
+		Suggestion:      "显式处理异常、记录有用上下文，或在应由调用方决策时重新抛出。",
 		NeedsHumanCheck: true,
 	}
 }

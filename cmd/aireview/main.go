@@ -3,15 +3,20 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 
 	"aireview/internal/app"
 	"aireview/internal/config"
 	"aireview/internal/github"
+	"aireview/internal/jobs"
 	"aireview/internal/llm"
 	reportout "aireview/internal/report"
 	"aireview/internal/review"
+	"aireview/internal/server"
+	"aireview/internal/session"
+	"aireview/internal/storage"
 
 	"github.com/spf13/cobra"
 )
@@ -26,6 +31,12 @@ type reviewOptions struct {
 	minSeverity   string
 	minConfidence float64
 	maxFiles      int
+}
+
+type serverOptions struct {
+	port       int
+	mysqlDSN   string
+	configPath string
 }
 
 func main() {
@@ -44,6 +55,7 @@ func newRootCommand() *cobra.Command {
 	}
 
 	cmd.AddCommand(newReviewCommand())
+	cmd.AddCommand(newServerCommand())
 	return cmd
 }
 
@@ -101,6 +113,83 @@ func newReviewCommand() *cobra.Command {
 	cmd.Flags().StringVar(&opts.minSeverity, "min-severity", "", "minimum severity to include: low, medium or high")
 	cmd.Flags().Float64Var(&opts.minConfidence, "min-confidence", 0, "minimum confidence to include")
 	cmd.Flags().IntVar(&opts.maxFiles, "max-files", 0, "maximum number of changed files to analyze")
+
+	return cmd
+}
+
+func newServerCommand() *cobra.Command {
+	var opts serverOptions
+
+	cmd := &cobra.Command{
+		Use:   "server",
+		Short: "Start the AIReview Web API server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.Load(opts.configPath)
+			if err != nil {
+				return err
+			}
+			dsn := strings.TrimSpace(opts.mysqlDSN)
+			if dsn == "" {
+				dsn = strings.TrimSpace(os.Getenv("MYSQL_DSN"))
+			}
+			if dsn == "" {
+				dsn = strings.TrimSpace(cfg.MySQL.DSN)
+			}
+			if dsn == "" {
+				router := server.NewRouter(server.Dependencies{})
+				addr := fmt.Sprintf(":%d", opts.port)
+				httpServer := &http.Server{
+					Addr:    addr,
+					Handler: router,
+				}
+				return httpServer.ListenAndServe()
+			}
+			db, err := storage.OpenMySQL(cmd.Context(), dsn)
+			if err != nil {
+				return err
+			}
+			sqlDB, err := db.DB()
+			if err != nil {
+				return err
+			}
+			defer sqlDB.Close()
+			if err := storage.Migrate(cmd.Context(), db); err != nil {
+				return err
+			}
+
+			store := storage.NewMySQLStore(db)
+			queue := jobs.NewQueue(100)
+			reviewService := &app.ReviewService{
+				GitHub: github.NewClient(),
+				LLM:    llm.NewOpenAICompatibleProvider(cfg),
+			}
+			worker := jobs.Worker{
+				Queue:         queue,
+				Store:         store,
+				ReviewService: reviewService,
+			}
+			go worker.Run(cmd.Context())
+
+			sessionService := session.Service{Store: store}
+			router := server.NewRouter(server.Dependencies{
+				Store:   store,
+				Queue:   queue,
+				Config:  cfg,
+				Service: sessionService,
+			})
+
+			addr := fmt.Sprintf(":%d", opts.port)
+			httpServer := &http.Server{
+				Addr:    addr,
+				Handler: router,
+			}
+			return httpServer.ListenAndServe()
+		},
+	}
+
+	cmd.Flags().IntVar(&opts.port, "port", 8080, "HTTP server port")
+	cmd.Flags().StringVar(&opts.mysqlDSN, "mysql-dsn", "", "MySQL DSN, defaults to MYSQL_DSN")
+	cmd.Flags().StringVar(&opts.configPath, "config", "", "path to .aireview.toml")
 
 	return cmd
 }

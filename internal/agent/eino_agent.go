@@ -74,6 +74,7 @@ func (a *EinoReviewAgent) Analyze(ctx context.Context, req AnalyzeRequest) (Anal
 	return AnalyzeResult{
 		Report:  state.FinalReport,
 		Metrics: state.Metrics,
+		Context: state,
 	}, nil
 }
 

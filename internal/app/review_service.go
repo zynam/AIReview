@@ -28,6 +28,7 @@ type ReviewPRRequest struct {
 type ReviewPRResult struct {
 	Report      review.ReviewReport
 	PullRequest review.PullRequest
+	Agent       agent.AnalyzeResult
 }
 
 func (s *ReviewService) ReviewPR(ctx context.Context, req ReviewPRRequest) (review.ReviewReport, error) {
@@ -74,6 +75,7 @@ func (s *ReviewService) ReviewPRWithDetails(ctx context.Context, req ReviewPRReq
 	return ReviewPRResult{
 		Report:      report,
 		PullRequest: pr,
+		Agent:       agentResult,
 	}, nil
 }
 

@@ -1,6 +1,10 @@
 <template>
   <div class="progress-block">
-    <el-steps :active="activeStep" finish-status="success" process-status="process">
+    <el-steps
+      :active="activeStep"
+      finish-status="success"
+      :process-status="processStatus"
+    >
       <el-step title="Created" />
       <el-step title="拉取 PR" />
       <el-step title="构建 Context" />
@@ -39,11 +43,14 @@ const activeStep = computed(() => {
     case "analyzing":
       return 4;
     case "completed":
-    case "failed":
     case "cancelled":
       return 5;
+    case "failed":
+      return 4;
     default:
       return 0;
   }
 });
+
+const processStatus = computed(() => (props.status === "failed" ? "error" : "process"));
 </script>

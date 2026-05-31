@@ -12,7 +12,7 @@
         </el-menu-item>
         <el-menu-item index="/reviews/new">
           <el-icon><Plus /></el-icon>
-          <span>New Review</span>
+          <span>新建 Review</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -48,14 +48,14 @@ const activeMenu = computed(() =>
 );
 
 const pageTitle = computed(() => {
-  if (route.path === "/reviews/new") return "New Review";
-  if (route.params.id) return "Review Detail";
-  return "Review Sessions";
+  if (route.path === "/reviews/new") return "新建 Review";
+  if (route.params.id) return "Review 详情";
+  return "Review 会话";
 });
 
 const pageSubtitle = computed(() => {
-  if (route.path === "/reviews/new") return "Create an AI-assisted PR analysis.";
-  if (route.params.id) return "Inspect findings, context, and report output.";
-  return "Search and open review sessions.";
+  if (route.path === "/reviews/new") return "创建一次 AI 辅助 PR 分析。";
+  if (route.params.id) return "查看 Findings、上下文和报告输出。";
+  return "搜索并打开 Review 会话。";
 });
 </script>

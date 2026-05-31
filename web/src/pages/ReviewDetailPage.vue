@@ -7,18 +7,18 @@
         <div class="panel-header">
           <div>
             <h2>{{ review.current.owner }}/{{ review.current.repo }}#{{ review.current.pr_number }}</h2>
-            <p class="mono">{{ review.current.head_sha || "No head SHA" }}</p>
+            <p class="mono">{{ review.current.head_sha || "暂无 head SHA" }}</p>
           </div>
           <div class="toolbar">
             <ReviewStatusTag :status="review.current.status" />
-            <el-button :icon="Refresh" :loading="review.loading" @click="reload">Refresh</el-button>
+            <el-button :icon="Refresh" :loading="review.loading" @click="reload">刷新</el-button>
           </div>
         </div>
         <ReviewProgress :status="review.current.status" :error="review.current.error" />
       </div>
 
       <el-tabs v-model="activeTab" class="detail-tabs">
-        <el-tab-pane label="Overview" name="overview">
+        <el-tab-pane label="概览" name="overview">
           <div class="panel">
             <el-descriptions :column="3" border>
               <el-descriptions-item label="Reviewer">
@@ -27,77 +27,77 @@
               <el-descriptions-item label="Findings">
                 {{ review.findings.length }}
               </el-descriptions-item>
-              <el-descriptions-item label="Updated">
+              <el-descriptions-item label="更新时间">
                 {{ formatDate(review.current.updated_at) }}
               </el-descriptions-item>
-              <el-descriptions-item label="Model">
+              <el-descriptions-item label="模型">
                 {{ latestLLMCall?.model || "-" }}
               </el-descriptions-item>
               <el-descriptions-item label="Prompt Tokens">
                 {{ latestLLMCall?.prompt_tokens_approx ?? "-" }}
               </el-descriptions-item>
-              <el-descriptions-item label="Duration">
+              <el-descriptions-item label="耗时">
                 {{ formatDuration(latestLLMCall?.duration_millis) }}
               </el-descriptions-item>
             </el-descriptions>
 
             <div class="overview-grid">
               <section>
-                <h3>Summary</h3>
-                <p>{{ review.current.summary || "Summary is not available yet." }}</p>
+                <h3>Summary 摘要</h3>
+                <p>{{ review.current.summary || "Summary 暂不可用。" }}</p>
               </section>
               <section>
-                <h3>Impact</h3>
-                <el-empty v-if="review.current.impact.length === 0" description="No impact items" />
+                <h3>Impact 影响范围</h3>
+                <el-empty v-if="review.current.impact.length === 0" description="暂无影响项" />
                 <ul v-else class="plain-list">
                   <li v-for="item in review.current.impact" :key="item">{{ item }}</li>
                 </ul>
               </section>
               <section>
-                <h3>Test Assessment</h3>
+                <h3>测试评估</h3>
                 <p>
-                  {{ review.current.test_assessment || "Test assessment is not available yet." }}
+                  {{ review.current.test_assessment || "测试评估暂不可用。" }}
                 </p>
               </section>
               <section>
-                <h3>Skipped Files</h3>
+                <h3>跳过文件</h3>
                 <el-empty
                   v-if="review.current.skipped_files.length === 0"
-                  description="No skipped files"
+                  description="暂无跳过文件"
                 />
                 <ul v-else class="plain-list mono">
                   <li v-for="file in review.current.skipped_files" :key="file">{{ file }}</li>
                 </ul>
               </section>
               <section>
-                <h3>Agent Metrics</h3>
-                <el-empty v-if="!latestLLMCall" description="No metrics yet" />
+                <h3>Agent 指标</h3>
+                <el-empty v-if="!latestLLMCall" description="暂无指标" />
                 <dl v-else class="metrics-list">
                   <div>
-                    <dt>Context Chunks</dt>
+                    <dt>Context 片段数</dt>
                     <dd>{{ latestLLMCall.context_chunks }}</dd>
                   </div>
                   <div>
-                    <dt>Kept Chunks</dt>
+                    <dt>保留片段数</dt>
                     <dd>{{ latestLLMCall.kept_chunks }}</dd>
                   </div>
                   <div>
-                    <dt>Rule Findings</dt>
+                    <dt>规则 Findings</dt>
                     <dd>{{ latestLLMCall.rule_finding_count }}</dd>
                   </div>
                   <div>
-                    <dt>Skipped Files</dt>
+                    <dt>跳过文件</dt>
                     <dd>{{ latestLLMCall.skipped_files }}</dd>
                   </div>
                   <div>
-                    <dt>Request Bytes</dt>
+                    <dt>请求字节数</dt>
                     <dd>{{ latestLLMCall.request_bytes }}</dd>
                   </div>
                 </dl>
               </section>
               <section>
-                <h3>Agent Events</h3>
-                <el-empty v-if="events.length === 0" description="No events yet" />
+                <h3>Agent 事件</h3>
+                <el-empty v-if="events.length === 0" description="暂无事件" />
                 <ul v-else class="plain-list event-list">
                   <li v-for="event in recentEvents" :key="event.id || event.created_at">
                     <span class="mono">{{ event.type }}</span>
@@ -115,18 +115,18 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="Context" name="context" lazy>
+        <el-tab-pane label="上下文" name="context" lazy>
           <ContextPanel :review-id="reviewId" />
         </el-tab-pane>
 
-        <el-tab-pane label="Report" name="report" lazy>
+        <el-tab-pane label="报告" name="report" lazy>
           <ReportPreview :review-id="reviewId" />
         </el-tab-pane>
       </el-tabs>
     </template>
 
-    <el-empty v-else description="Review not found">
-      <el-button type="primary" @click="router.push('/reviews')">Back to Reviews</el-button>
+    <el-empty v-else description="未找到 Review">
+      <el-button type="primary" @click="router.push('/reviews')">返回 Review 列表</el-button>
     </el-empty>
 
     <el-alert
@@ -186,9 +186,9 @@ async function loadEvents() {
 async function setFeedback(id: string, status: FindingFeedbackStatus) {
   try {
     await review.setFindingFeedback(id, status);
-    ElMessage.success("Feedback updated");
+    ElMessage.success("Feedback 已更新");
   } catch (err) {
-    ElMessage.error(err instanceof Error ? err.message : "Failed to update feedback");
+    ElMessage.error(err instanceof Error ? err.message : "更新 Feedback 失败");
   }
 }
 

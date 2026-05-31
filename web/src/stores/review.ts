@@ -34,7 +34,7 @@ export const useReviewStore = defineStore("review", {
           this.stopPolling();
         }
       } catch (error) {
-        this.error = error instanceof Error ? error.message : "Failed to load review";
+        this.error = error instanceof Error ? error.message : "加载 Review 失败";
       } finally {
         this.loading = false;
       }

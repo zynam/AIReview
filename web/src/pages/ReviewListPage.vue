@@ -3,11 +3,11 @@
     <div class="panel">
       <div class="panel-header">
         <div>
-          <h2>Review Sessions</h2>
-          <p>Filter by reviewer, repository, or current status.</p>
+          <h2>Review 会话</h2>
+          <p>按 Reviewer、Repo 或当前 Status 过滤 Review 会话。</p>
         </div>
         <el-button type="primary" :icon="Plus" @click="router.push('/reviews/new')">
-          New Review
+          新建 Review
         </el-button>
       </div>
 
@@ -29,7 +29,12 @@
           />
         </el-form-item>
         <el-form-item label="Status">
-          <el-select v-model="filters.status" clearable placeholder="Any status">
+          <el-select
+            v-model="filters.status"
+            class="status-filter"
+            clearable
+            placeholder="全部 Status"
+          >
             <el-option label="Created" value="created" />
             <el-option label="Fetching PR" value="fetching_pr" />
             <el-option label="Building Context" value="building_context" />
@@ -41,9 +46,9 @@
         </el-form-item>
         <el-form-item>
           <el-button :icon="Search" :loading="loading" type="primary" @click="loadReviews">
-            Search
+            搜索
           </el-button>
-          <el-button :icon="Refresh" @click="resetFilters">Reset</el-button>
+          <el-button :icon="Refresh" @click="resetFilters">重置</el-button>
         </el-form-item>
       </el-form>
 
@@ -61,7 +66,7 @@
         :data="reviews"
         row-key="id"
         border
-        empty-text="No reviews found"
+        empty-text="暂无 Review 会话"
         @row-click="openReview"
       >
         <el-table-column label="PR" min-width="220" show-overflow-tooltip>
@@ -76,16 +81,16 @@
           </template>
         </el-table-column>
         <el-table-column prop="findings_count" label="Findings" width="110" />
-        <el-table-column label="Created" width="190">
+        <el-table-column label="创建时间" width="190">
           <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
         </el-table-column>
-        <el-table-column label="Updated" width="190">
+        <el-table-column label="更新时间" width="190">
           <template #default="{ row }">{{ formatDate(row.updated_at) }}</template>
         </el-table-column>
-        <el-table-column label="Actions" width="120" fixed="right">
+        <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
             <el-button :icon="View" link type="primary" @click.stop="openReview(row)">
-              Open
+              打开
             </el-button>
           </template>
         </el-table-column>
@@ -123,7 +128,7 @@ async function loadReviews() {
       status: filters.status || undefined,
     });
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Failed to load reviews";
+    error.value = err instanceof Error ? err.message : "加载 Review 会话失败";
     reviews.value = [];
   } finally {
     loading.value = false;

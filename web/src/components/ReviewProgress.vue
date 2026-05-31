@@ -2,10 +2,10 @@
   <div class="progress-block">
     <el-steps :active="activeStep" finish-status="success" process-status="process">
       <el-step title="Created" />
-      <el-step title="Fetch PR" />
-      <el-step title="Context" />
-      <el-step title="Analyze" />
-      <el-step title="Done" />
+      <el-step title="拉取 PR" />
+      <el-step title="构建 Context" />
+      <el-step title="分析" />
+      <el-step title="完成" />
     </el-steps>
     <el-alert
       v-if="status === 'failed' && error"

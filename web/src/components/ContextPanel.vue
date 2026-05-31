@@ -2,10 +2,10 @@
   <section class="panel">
     <div class="panel-header">
       <div>
-        <h2>Context</h2>
-        <p>Repository snippets used during analysis.</p>
+        <h2>Context 上下文</h2>
+        <p>分析过程中使用的代码上下文片段。</p>
       </div>
-      <el-button :icon="Refresh" :loading="loading" @click="loadContexts">Refresh</el-button>
+      <el-button :icon="Refresh" :loading="loading" @click="loadContexts">刷新</el-button>
     </div>
 
     <el-alert
@@ -17,14 +17,14 @@
       :closable="false"
     />
 
-    <el-table :data="contexts" row-key="id" border empty-text="No context chunks">
-      <el-table-column prop="file" label="File" min-width="260" show-overflow-tooltip />
-      <el-table-column prop="kind" label="Kind" width="130" />
+    <el-table :data="contexts" row-key="id" border empty-text="暂无 Context 片段">
+      <el-table-column prop="file" label="文件" min-width="260" show-overflow-tooltip />
+      <el-table-column prop="kind" label="类型" width="130" />
       <el-table-column prop="tokens" label="Tokens" width="100" />
-      <el-table-column label="Score" width="110">
+      <el-table-column label="评分" width="110">
         <template #default="{ row }">{{ formatScore(row.score) }}</template>
       </el-table-column>
-      <el-table-column label="Content" min-width="300">
+      <el-table-column label="内容" min-width="300">
         <template #default="{ row }">
           <pre class="context-preview">{{ row.content }}</pre>
         </template>
@@ -54,7 +54,7 @@ async function loadContexts() {
   try {
     contexts.value = await getContexts(props.reviewId);
   } catch (err) {
-    error.value = err instanceof Error ? err.message : "Failed to load contexts";
+    error.value = err instanceof Error ? err.message : "加载 Context 失败";
   } finally {
     loading.value = false;
   }

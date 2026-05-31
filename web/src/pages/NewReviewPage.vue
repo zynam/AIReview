@@ -3,8 +3,8 @@
     <div class="panel form-panel">
       <div class="panel-header">
         <div>
-          <h2>Create Review</h2>
-          <p>Submit a GitHub pull request URL for asynchronous analysis.</p>
+          <h2>新建 Review</h2>
+          <p>提交 GitHub PR URL，创建异步分析任务。</p>
         </div>
       </div>
 
@@ -19,8 +19,8 @@
         <el-form-item label="Reviewer ID" prop="reviewer_id">
           <el-input v-model="form.reviewer_id" placeholder="alice" clearable />
         </el-form-item>
-        <el-form-item label="Model" prop="model">
-          <el-select v-model="form.model" placeholder="Select model">
+        <el-form-item label="模型" prop="model">
+          <el-select v-model="form.model" placeholder="选择模型">
             <el-option
               v-for="model in modelChoices"
               :key="model"
@@ -29,21 +29,21 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="Review Focus" prop="review_focus">
+        <el-form-item label="Review 关注点" prop="review_focus">
           <el-checkbox-group v-model="form.review_focus">
             <el-checkbox v-for="focus in focusOptions" :key="focus.value" :label="focus.value">
               {{ focus.label }}
             </el-checkbox>
           </el-checkbox-group>
         </el-form-item>
-        <el-form-item label="Max Files" prop="max_files">
+        <el-form-item label="最大文件数" prop="max_files">
           <el-input-number v-model="form.max_files" :min="1" :max="300" :step="5" />
         </el-form-item>
 
         <div class="form-actions">
-          <el-button @click="router.push('/reviews')">Cancel</el-button>
+          <el-button @click="router.push('/reviews')">取消</el-button>
           <el-button type="primary" :loading="submitting" :icon="CaretRight" @click="submit">
-            Start Analysis
+            开始分析
           </el-button>
         </div>
       </el-form>
@@ -75,12 +75,12 @@ const submitting = ref(false);
 
 const modelChoices = ["deepseek-chat", "gpt-4.1", "gpt-4.1-mini"];
 const focusOptions = [
-  { label: "Correctness", value: "correctness" },
-  { label: "Security", value: "security" },
-  { label: "Performance", value: "performance" },
-  { label: "Compatibility", value: "compatibility" },
-  { label: "Maintainability", value: "maintainability" },
-  { label: "Test risk", value: "test risk" },
+  { label: "正确性", value: "correctness" },
+  { label: "安全性", value: "security" },
+  { label: "性能", value: "performance" },
+  { label: "兼容性", value: "compatibility" },
+  { label: "可维护性", value: "maintainability" },
+  { label: "测试风险", value: "test risk" },
 ];
 
 const form = reactive<ReviewForm>({
@@ -95,11 +95,11 @@ const githubPrPattern = /^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+$/;
 
 const rules: FormRules<ReviewForm> = {
   pr_url: [
-    { required: true, message: "PR URL is required", trigger: "blur" },
+    { required: true, message: "PR URL 不能为空", trigger: "blur" },
     {
       validator: (_rule, value: string, callback) => {
         if (!githubPrPattern.test(value.trim())) {
-          callback(new Error("Use https://github.com/{owner}/{repo}/pull/{number}"));
+          callback(new Error("请使用 https://github.com/{owner}/{repo}/pull/{number}"));
           return;
         }
         callback();
@@ -107,18 +107,18 @@ const rules: FormRules<ReviewForm> = {
       trigger: "blur",
     },
   ],
-  reviewer_id: [{ required: true, message: "Reviewer ID is required", trigger: "blur" }],
-  model: [{ required: true, message: "Model is required", trigger: "change" }],
+  reviewer_id: [{ required: true, message: "Reviewer ID 不能为空", trigger: "blur" }],
+  model: [{ required: true, message: "模型不能为空", trigger: "change" }],
   review_focus: [
     {
       type: "array",
       required: true,
       min: 1,
-      message: "Select at least one focus",
+      message: "至少选择一个 Review 关注点",
       trigger: "change",
     },
   ],
-  max_files: [{ required: true, message: "Max files is required", trigger: "change" }],
+  max_files: [{ required: true, message: "最大文件数不能为空", trigger: "change" }],
 };
 
 async function submit() {
@@ -137,10 +137,10 @@ async function submit() {
         max_files: form.max_files,
       },
     });
-    ElMessage.success("Review session created");
+    ElMessage.success("Review 会话已创建");
     await router.push(`/reviews/${result.id}`);
   } catch (err) {
-    ElMessage.error(err instanceof Error ? err.message : "Failed to create review");
+    ElMessage.error(err instanceof Error ? err.message : "创建 Review 失败");
   } finally {
     submitting.value = false;
   }

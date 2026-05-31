@@ -12,7 +12,7 @@ http.interceptors.response.use(
       error.response?.data?.error?.message ??
       error.response?.data?.message ??
       error.message ??
-      "Request failed";
+      "请求失败";
     return Promise.reject(new Error(message));
   },
 );

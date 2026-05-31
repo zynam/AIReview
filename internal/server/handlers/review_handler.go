@@ -1,8 +1,8 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
-	"os"
 	"strings"
 
 	"aireview/internal/config"
@@ -31,9 +31,19 @@ type createReviewConfig struct {
 	MaxFiles    int      `json:"max_files"`
 }
 
+var allowedReviewModels = map[string]struct{}{
+	"deepseek-v4-flash": {},
+	"deepseek-v4-pro":   {},
+	"deepseek-chat":     {},
+}
+
 func (h ReviewHandler) Create(c *gin.Context) {
 	var req createReviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		writeError(c, http.StatusBadRequest, err)
+		return
+	}
+	if err := validateCreateReviewConfig(req.Config); err != nil {
 		writeError(c, http.StatusBadRequest, err)
 		return
 	}
@@ -117,13 +127,24 @@ func (h ReviewHandler) Events(c *gin.Context) {
 
 func mergeConfig(base config.Config, req createReviewConfig) config.Config {
 	cfg := base
-	if strings.TrimSpace(os.Getenv("LLM_MODEL")) == "" && strings.TrimSpace(req.Model) != "" {
+	if strings.TrimSpace(req.Model) != "" {
 		cfg.LLM.Model = strings.TrimSpace(req.Model)
 	}
 	if len(req.ReviewFocus) > 0 {
 		cfg.ReviewFocus = req.ReviewFocus
 	}
 	return cfg
+}
+
+func validateCreateReviewConfig(req createReviewConfig) error {
+	model := strings.TrimSpace(req.Model)
+	if model == "" {
+		return nil
+	}
+	if _, ok := allowedReviewModels[model]; !ok {
+		return fmt.Errorf("unsupported model %q; allowed models: deepseek-v4-flash, deepseek-v4-pro, deepseek-chat", model)
+	}
+	return nil
 }
 
 func writeStoreError(c *gin.Context, err error) {

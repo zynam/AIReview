@@ -73,7 +73,7 @@ const user = useUserStore();
 const formRef = ref<FormInstance>();
 const submitting = ref(false);
 
-const modelChoices = ["deepseek-chat", "gpt-4.1", "gpt-4.1-mini"];
+const modelChoices = ["deepseek-v4-flash", "deepseek-v4-pro", "deepseek-chat"];
 const focusOptions = [
   { label: "正确性", value: "correctness" },
   { label: "安全性", value: "security" },

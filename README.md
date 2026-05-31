@@ -248,3 +248,7 @@ ContextBuildNode
 - Finding 校验用于降低模型编造文件或行号的风险
 - Reviewer 可以对 Finding 进行反馈标记
 
+
+## 演示视频链接
+- 通过网盘分享的文件：2026-05-31 14-20-05.mp4
+  链接: https://pan.baidu.com/s/1oA5A6qWYMcXAMWupXnL11w 提取码: xj4c

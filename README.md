@@ -12,9 +12,12 @@ AIReview 是一个 Web 化的 AI Pull Request 代码评审系统。Reviewer 在�
 - Reviewer 会话管理
 - Web 化的历史记录、Findings、上下文、事件和 Markdown 报告查看
 
-## 当前状态
+## 演示视频链接
+- 通过网盘分享的文件：2026-05-31 14-20-05.mp4
+  链接: https://pan.baidu.com/s/1oA5A6qWYMcXAMWupXnL11w 提取码: xj4c
 
-已实现：
+## 实现功能
+
 
 - Vue 3 Review 会话管理前端
 - 基于 Gin 的 Go HTTP 后端
@@ -249,6 +252,3 @@ ContextBuildNode
 - Reviewer 可以对 Finding 进行反馈标记
 
 
-## 演示视频链接
-- 通过网盘分享的文件：2026-05-31 14-20-05.mp4
-  链接: https://pan.baidu.com/s/1oA5A6qWYMcXAMWupXnL11w 提取码: xj4c

@@ -12,8 +12,6 @@ AIReview 是一个 Web 化的 AI Pull Request 代码评审系统。Reviewer 在�
 - Reviewer 会话管理
 - Web 化的历史记录、Findings、上下文、事件和 Markdown 报告查看
 
-旧版同步命令行 PR Review 流程已经弃用。`cmd/aireview` 当前只作为后端服务启动入口。
-
 ## 当前状态
 
 已实现：
@@ -30,13 +28,6 @@ AIReview 是一个 Web 化的 AI Pull Request 代码评审系统。Reviewer 在�
 - Finding 反馈标记
 - Markdown 报告导出
 
-仍在演进：
-
-- GitHub App / webhook 集成
-- GitHub Checks 集成
-- 将 Review 评论发布回 GitHub PR
-- 仓库级语义索引和向量检索
-- 基于 AST 或调用图的深度上下文提取
 
 ## 系统架构
 
@@ -130,9 +121,6 @@ $env:LLM_MODEL="deepseek-chat"
 $env:GITHUB_TOKEN="your-github-token"
 ```
 
-`GITHUB_TOKEN` 对公开仓库不是强制项，但建议配置以避免 GitHub API 限流。访问私有仓库时必须配置。
-
-不要把真实 API Key、GitHub Token 或数据库密码提交到仓库。
 
 ## 快速启动
 
@@ -162,18 +150,6 @@ $env:LLM_MODEL="deepseek-chat"
 go run ./cmd/aireview --port 8080 --config configs/aireview.toml
 ```
 
-健康检查：
-
-```bash
-curl http://localhost:8080/health
-```
-
-预期返回：
-
-```json
-{"status":"ok"}
-```
-
 ### 3. 启动前端
 
 ```bash
@@ -188,11 +164,6 @@ npm run dev
 http://localhost:5173
 ```
 
-如果后端不是运行在 `http://localhost:8080`，可以设置：
-
-```powershell
-$env:VITE_API_BASE="http://localhost:8080"
-```
 
 ## API 概览
 
@@ -276,44 +247,4 @@ ContextBuildNode
 - Finding 包含 severity 和 confidence
 - Finding 校验用于降低模型编造文件或行号的风险
 - Reviewer 可以对 Finding 进行反馈标记
-
-后续计划：
-
-- 仓库级上下文索引
-- 语义检索
-- 基于 AST / tree-sitter 的函数级上下文提取
-- 调用图辅助上下文选择
-- GitHub Checks 和 PR inline comments
-
-## 开发
-
-后端测试：
-
-```bash
-go test ./...
-```
-
-前端构建：
-
-```bash
-cd web
-npm run build
-```
-
-## 安全注意
-
-- 不要提交 `LLM_API_KEY`、`GITHUB_TOKEN` 和 MySQL 密码。
-- 优先使用环境变量，不要把敏感信息写入已提交的配置文件。
-- 生产环境避免记录完整私有仓库 patch 或完整模型 prompt。
-- 如果真实 Key 曾被提交或推送，请立即轮换。
-
-## 文档
-
-更多设计和实施文档位于 `docs/`，包括：
-
-- 架构实现文档
-- 前端实施文档
-- 后端实施文档
-- Agent 实施文档
-- CloudWeGo Eino Agent 设计文档
 
